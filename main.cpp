@@ -1,8 +1,11 @@
 /*
-**  Created by: Jason Orender
-**  (c) all rights reserved
+** Created by: Jason Orender
+** (c) all rights reserved
 **
-**  This program implements a logistic regression algorithm using a sparse vector format.
+** This program implements a logistic regression algorithm using a sparse vector format. For
+** very small vectors this incurs a fairly massive penalty (about 22x).  However, for extremely
+** large vectors, there is both a speed and memory advantage if most of the entries in the
+** vector are zeroes.
 */
 
 #include <iostream>
@@ -811,7 +814,8 @@ double Dvect::sum(void) {
 } // end sum()
 
 /*
-** The exp() function takes the exponential function of every element.
+** The exp() function takes the exponential function of every element.  Note that
+** zeroes will potentially become explicit elements.
 */
 void Dvect::exp_elem(void) {
   double d;
@@ -825,14 +829,22 @@ void Dvect::exp_elem(void) {
 
 /*
 ** The apply_threshold() function sets values greater than or equal to
-** the threshold to one and values less than the threshold to zero.
+** the threshold to one and values less than the threshold to zero. The 
+** threshold supplied must be greater than zero and less than or equal
+** to one.
 */
 void Dvect::apply_threshold(double f) {
+  list<Datapoint>::iterator it;
   double d;
 
-  for (int i=0; i<sz; i++) {
-    d = element(i);
-    if (d >= f) element_c(i) = 1.0; else remove(i);
-  } // end for (i)
+  if ((f > 0.0) && (f <= 1.0)) {
+
+    it = a.begin();
+    while (it != a.end()) {
+      if ((*it).d >= f) { (*it).d = 1.0; it++; }
+      else                 it = a.erase(it);
+    } // end while (it)
+
+  } // end if (f)
 
 } // end apply_threshold()
