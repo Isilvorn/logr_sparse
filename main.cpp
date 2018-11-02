@@ -1,3 +1,10 @@
+/*
+**  Created by: Jason Orender
+**  (c) all rights reserved
+**
+**  This program implements a logistic regression algorithm using a sparse vector format.
+*/
+
 #include <iostream>
 #include <iomanip>
 #include <fstream>
@@ -103,33 +110,6 @@ int main(int argv, char **argc) {
   for (int i=0; i<argv; i++)
 	cout << argc[i] << " ";
   cout << endl;
-  /*
-  Dvect  testvec(10);
-
-  cout << "testvec: " << testvec << endl;
-
-  cout << "enter 10 values: " << endl;
-  cin  >> testvec;
-
-  cout << "testvec: " << testvec << endl;
-
-  testvec.set(2,123);
-  testvec[8] = 321;
-  
-  cout << "testvec: " << testvec << endl;
-
-  Dvect testvec2(testvec);
-
-  cout << "testvec2: " << testvec2 << endl;
-  cout << "number explicitly present: " << testvec2.count_explicit() << endl;
-
-  cout << "6th element: " << testvec2[5] << ", 9th element: " << testvec[8] << endl;
-
-  testvec.setall(4);
-  testvec = testvec2 * 5;
-  cout << "testvec: " << testvec << endl;
-  cout << "number explicitly present: " << testvec.count_explicit() << endl;
-  */
 
   Dvect    wvec;            // weights input file
   Dvect    yvec;            // observed y-values
@@ -757,6 +737,30 @@ Dvect Dvect::operator+(const Dvect &v) {
 ** from this one. If the vectors are not of equal size, it does nothing.
 */
 Dvect& Dvect::operator-=(const Dvect &v) {
+  double d;
+  int    i;
+  list<Datapoint>::iterator it;
+  list<Datapoint>::const_iterator itc;
+
+  if (v.size() == sz) {	
+
+    it = a.begin();
+    while (it != a.end()) {
+      i = (*it).i;
+      (*it).d -= v[i]; 
+      it++;
+    } // end while (it)
+
+    itc = v.a.begin();
+    while (itc != v.a.end()) {
+      i = (*itc).i;
+      if (!is_explicit(i)) element_c(i) -= (*itc).d;
+      itc++;
+    } // end while (it)
+
+  } // end if (v)
+
+  /*
   Dvect temp;
 
   if (v.size() == sz) {	
@@ -765,6 +769,7 @@ Dvect& Dvect::operator-=(const Dvect &v) {
     temp += *this;
     copy(temp);
   } // end if
+  */
 
   return *this;
 }

@@ -1,0 +1,9 @@
+echo
+echo -n "Time Start: "
+date
+echo
+./logr data/weights_input.dat data/y_breast-cancer_observed.dat data/x_breast-cancer_features.dat
+echo
+echo -n "Time End  : "
+date
+echo
