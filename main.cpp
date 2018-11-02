@@ -510,30 +510,20 @@ istream& operator>>(istream& is, Dvect& v) {
 /*
 ** Default constructor.
 */
-Dvect::Dvect(void) { 
-  // using resize to initialize the vector to zero size
-  resize(0);
-}
+inline Dvect::Dvect(void) { resize(0); }
 
 /*
 ** Alternate constructor.
 */
-Dvect::Dvect(int n) { 
-  // using the resize function to initialize the vector
-  resize(n);
-}
+inline Dvect::Dvect(int n) { resize(n); }
 
 /*
 ** Copy constructor.
 */
-Dvect::Dvect(const Dvect &v) {
-  // using the resize function to initialize the vector, if it works copy the input
-  if (resize(v.size())) copy(v);
-}
+inline Dvect::Dvect(const Dvect &v) { copy(v); }
 
-
-Dvect::~Dvect(void) {
-  // explicitly erasing the list holding the data
+inline Dvect::~Dvect(void) {
+  // explicitly erasing the list holding the data before destroying the object
   a.erase(a.begin(),a.end());
  }
 
@@ -552,13 +542,7 @@ bool Dvect::is_explicit(int n) const {
 ** The count_explicit() function returns the number of elements that are explicitly 
 ** present in the list.
 */
-int Dvect::count_explicit(void) const {
-  int i=0;
-  list<Datapoint>::const_iterator it;
-  it = a.begin();
-  while (it != a.end()) { i++; it++; } // increment the iterator for each element
-  return i;
-}
+int Dvect::count_explicit(void) const { return a.size(); }
 
 /*
 ** The remove() function removes an explicit element from the list, which essentially
@@ -607,7 +591,8 @@ double& Dvect::element_c(int n) {
   } // end element_c()
 
 /*
-** The setall() function sets every element explicitly to an input value.
+** The setall() function sets every element explicitly to an input value. Note that this eliminates
+** sparsity.
 */
 void Dvect::setall(double d) {
   Datapoint dp;
@@ -626,11 +611,12 @@ void Dvect::setall(double d) {
 /*
 ** The set() function sets a specific element to an input value.
 */
-void Dvect::set(int i,double d) {
-  if (i < sz) element_c(i) = d; 
-}
+inline void Dvect::set(int i,double d) { if (i < sz) element_c(i) = d; }
 
-inline int Dvect::size(void) const     { return sz; }
+/*
+** The size() function returns the nominal size of the vector.
+*/
+inline int Dvect::size(void) const { return sz; }
 
 /*
 ** The "*=" operator when used with two vectors multiplies each of the vectors
@@ -669,7 +655,7 @@ Dvect& Dvect::operator*=(const double f) {
   else a.erase(a.begin(),a.end()); // this is the same as removing all explicit elements
 
   return *this;
-}
+} // end "*=" operator definition
 
 /*
 ** This version of the "*" operator multiplies a vector by a constant.
@@ -678,7 +664,7 @@ Dvect Dvect::operator*(const double d) {
   Dvect vreturn(*this);
   vreturn *= d;
   return vreturn;
-}
+} // end "*" operator definition
 
 
 /*
@@ -689,38 +675,28 @@ Dvect Dvect::operator*(const Dvect &v) {
   Dvect vreturn(*this);
   vreturn *= v;
   return vreturn;
-}
+} // end "*" operator definition
 
 /*
 ** The "+=" operator when used with two vectors adds another vector element-by-element.
 ** to this one. If the vectors are not of equal size, it does nothing.
 */
 Dvect& Dvect::operator+=(const Dvect &v) {
-  double d;
   int    i;
-  list<Datapoint>::iterator it;
   list<Datapoint>::const_iterator itc;
 
   if (v.size() == sz) {	
-
-    it = a.begin();
-    while (it != a.end()) {
-      i = (*it).i;
-      (*it).d += v[i]; 
-      it++;
-    } // end while (it)
-
     itc = v.a.begin();
     while (itc != v.a.end()) {
       i = (*itc).i;
-      if (!is_explicit(i)) element_c(i) += (*itc).d;
+      element_c(i) += (*itc).d;
       itc++;
     } // end while (it)
 
   } // end if (v)
 
   return *this;
-}
+} // end "+=" operator definition
 
 /*
 ** The "+" operator adds two vectors together element-by-element. If the vectors are
@@ -730,49 +706,28 @@ Dvect Dvect::operator+(const Dvect &v) {
   Dvect vreturn(*this);
   vreturn += v;
   return vreturn;
-}
+} // end "+" operator defnition
 
 /*
 ** The "-=" operator when used with two vectors subtracts another vector element-by-element.
 ** from this one. If the vectors are not of equal size, it does nothing.
 */
 Dvect& Dvect::operator-=(const Dvect &v) {
-  double d;
-  int    i;
-  list<Datapoint>::iterator it;
+  int i;
   list<Datapoint>::const_iterator itc;
 
   if (v.size() == sz) {	
-
-    it = a.begin();
-    while (it != a.end()) {
-      i = (*it).i;
-      (*it).d -= v[i]; 
-      it++;
-    } // end while (it)
-
     itc = v.a.begin();
     while (itc != v.a.end()) {
       i = (*itc).i;
-      if (!is_explicit(i)) element_c(i) -= (*itc).d;
+      element_c(i) -= (*itc).d;
       itc++;
     } // end while (it)
 
   } // end if (v)
 
-  /*
-  Dvect temp;
-
-  if (v.size() == sz) {	
-    temp = v;
-    temp *= -1;
-    temp += *this;
-    copy(temp);
-  } // end if
-  */
-
   return *this;
-}
+} // end "-=" operator definition
 
 /*
 ** The "-" operator subtracts two vectors element-by-element. If the vectors are
@@ -782,29 +737,19 @@ Dvect Dvect::operator-(const Dvect &v) {
   Dvect vreturn(*this);
   vreturn -= v;
   return vreturn;
-}
+} // end "-" operator definition
 
 /*
 ** This assignment operator uses the copy() function to copy from one vector to another
 ** as long as they are the same size.  Otherwise it does nothing.
 */
-Dvect& Dvect::operator=(const Dvect &v) {
-  resize(v.size());
-  copy(v);
-  return *this;
-}
-
+Dvect& Dvect::operator=(const Dvect &v) { copy(v); return *this; }
 
 /*
 ** This assignment operator uses the setall() function to copy a double to every element
 ** in the vector.
 */
-/*
-Dvect& Dvect::operator=(const double d) {
-  setall(d);
-  return *this;
-}
-*/
+Dvect& Dvect::operator=(const double d) { setall(d); return *this; }
 
 /*
 ** The bracket ("[]") operator allows accessing an individual element in the vector. The first
@@ -812,10 +757,10 @@ Dvect& Dvect::operator=(const double d) {
 */
 double Dvect::operator[](int i) const{
   if (i < sz) return element(i); else return element(sz-1);
-}
+} // end "[]" (get) operator definition
 double& Dvect::operator[](int i) {
   if (i < sz) return element_c(i); else return element_c(sz-1);
-}
+} // end "[]" (set) operator definition
 
 
 /*
@@ -826,18 +771,27 @@ bool Dvect::resize(int n) {
   a.erase(a.begin(),a.end());
   sz = n;
   return true; // this basic case always returns true
-}
+} // end resize()
 
 /*
-** The copy() function copies the contents of one vector to another and returns "true"
+** The copy() function copies the data of one vector to another and returns "true"
 ** if they are the same size.  Otherwise, it does nothing and returns "false".
 */
 bool Dvect::copy(const Dvect &v) {
-  if (v.size() == sz) {	
-    for (int i=0; i<sz; i++) { if (v.is_explicit(i)) element_c(i) = v[i]; }
-    return true;  
+  list<Datapoint>::const_iterator it;
+  Datapoint dp;
+
+  a.erase(a.begin(),a.end());
+  sz = v.sz;
+  it = v.a.begin();
+  while (it != v.a.end()) { 
+    dp.i = (*it).i; 
+    dp.d = (*it).d; 
+    a.push_front(dp);
+    it++; 
   }
-  else { return false; }
+  return true;  
+
 } // end copy()
 
 /*
