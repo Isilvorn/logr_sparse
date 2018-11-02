@@ -3,8 +3,23 @@
 #include <fstream>
 #include <random>
 #include <math.h>
+#include <list>
 
 using namespace std;
+
+/*
+** Datapoint is a struct that contains the data for Dvect.
+*/
+struct Datapoint {
+public:
+  Datapoint()         { d = 0.0; } // default constructor initializes as zero
+  Datapoint(double f) { d = f; }   // alternate constructor initializes with supplied value
+  ~Datapoint()        { }          // destructor does nothing
+
+  double d;                        // the double precision element of the data
+  int    i;                        // the index of the data (like an array index)
+  
+};
 
 /*
 ** Dvect is a class set up to store and manipulate a double precision vector.
@@ -16,10 +31,11 @@ public:
   Dvect(const Dvect&);             // copy constructor
   ~Dvect();                        // destructor
 
-  double element(int) const;       // gets the value of a specific element in the vector
-  void   setall(double);           // sets all elements of a vector to the argument value
-  void   set(int,double);          // sets a specific element to the argument value
-  int    size(void) const;         // gets the size of the vector
+  double  element(int) const;       // gets the value of a specific element in the vector
+  double& element_c(int);           // returns a reference to an element's data
+  void    setall(double);           // sets all elements of a vector to the argument value
+  void    set(int,double);          // sets a specific element to the argument value
+  int     size(void) const;         // gets the size of the vector
 
   Dvect& operator*=(const double); // multiplies the vector by a constant
   Dvect  operator*(const double);  // multiplies a vector by a constant
@@ -34,17 +50,20 @@ public:
   double operator[](int) const;    // allows accessing an individual element via brackets
   double& operator[](int);         // allows setting an individual element via brackets
 
-  bool   resize(int);              // discards the data and sets the vector size to a new value
-  bool   copy(const Dvect&);       // copies the data from an input vector to this one
-  double sum(void);                // returns the summation of all elements of this vector
-  void   exp_elem(void);           // takes the exponential function of every element
-  void   apply_threshold(double);  // sets values >= threshold to 1 and < threshold to 0
+  bool   is_explicit(int) const;     // returns whether an element is explicitly present
+  int    count_explicit(void) const; // returns the number of explicit entries in the list
+  void   remove(int);                // removes an explicit element (sets it to zero)
+  bool   resize(int);                // discards the data and sets the vector size to a new value
+  bool   copy(const Dvect&);         // copies the data from an input vector to this one
+  double sum(void);                  // returns the summation of all elements of this vector
+  void   exp_elem(void);             // takes the exponential function of every element
+  void   apply_threshold(double);    // sets values >= threshold to 1 and < threshold to 0
 
   friend ostream& operator<<(ostream&,const Dvect&); // outputs all elements to a stream
   friend istream& operator>>(istream&, Dvect&);      // inputs n elements from a stream
 
 private:
-  double *a;                       // the array for the vector data
+  list<Datapoint> a;               // the list containing the data for the vector
   int     sz;                      // the size of the vector
 };
 
@@ -84,6 +103,33 @@ int main(int argv, char **argc) {
   for (int i=0; i<argv; i++)
 	cout << argc[i] << " ";
   cout << endl;
+  /*
+  Dvect  testvec(10);
+
+  cout << "testvec: " << testvec << endl;
+
+  cout << "enter 10 values: " << endl;
+  cin  >> testvec;
+
+  cout << "testvec: " << testvec << endl;
+
+  testvec.set(2,123);
+  testvec[8] = 321;
+  
+  cout << "testvec: " << testvec << endl;
+
+  Dvect testvec2(testvec);
+
+  cout << "testvec2: " << testvec2 << endl;
+  cout << "number explicitly present: " << testvec2.count_explicit() << endl;
+
+  cout << "6th element: " << testvec2[5] << ", 9th element: " << testvec[8] << endl;
+
+  testvec.setall(4);
+  testvec = testvec2 * 5;
+  cout << "testvec: " << testvec << endl;
+  cout << "number explicitly present: " << testvec.count_explicit() << endl;
+  */
 
   Dvect    wvec;            // weights input file
   Dvect    yvec;            // observed y-values
@@ -105,101 +151,101 @@ int main(int argv, char **argc) {
   double   dist, optDIST;   // distance from optimal
 
   if (argv == 4) {
-	if (read_input(argc, wvec, yvec, &xvec, false)) {
-	  n1 = xmat_split(xvec, yvec, 0.333, &xvec1, &xvec2, yvec1, yvec2);
-	  cout << "  Training data: " << (yvec.size()-n1) << " examples" << endl;
-	  cout << "  Testing data : " <<  n1 << " examples" << endl;
-	  niter = getsoln(wvec, yvec2, xvec2, 0.001, 10000);
-	  cout << endl << "Solution after " << niter << " iterations: " << endl;
-	  cout << wvec << endl << endl;
+    if (read_input(argc, wvec, yvec, &xvec, false)) {
+      n1 = xmat_split(xvec, yvec, 0.333, &xvec1, &xvec2, yvec1, yvec2);
+      cout << "  Training data: " << (yvec.size()-n1) << " examples" << endl;
+      cout << "  Testing data : " <<  n1 << " examples" << endl;
+      niter = getsoln(wvec, yvec2, xvec2, 0.001, 10000);
+      cout << endl << "Solution after " << niter << " iterations: " << endl;
+      cout << wvec << endl << endl;
 
-	  cout << "Observed training y-values:" << endl 
-		   << setprecision(0) << fixed << yvec2 << endl << endl;
-	  cout << "Training Results (liklihood):" << endl;
-	  LLcomp(llvec, wvec, yvec2, xvec2);
-	  lvec = llvec;
-	  logl = lvec.sum();
-	  lvec.exp_elem();
-	  lvec.apply_threshold(0.999);
-	  cout << setprecision(0) << fixed << lvec << endl;
-	  calc_conf(cvec,yvec2,lvec);
-	  cout << endl << "Training Confusion numbers:" << endl;
-	  cout << setprecision(1) << fixed;
-	  cout << "  TP: " << setw(5) << 100*(cvec[TP]/(cvec[TP]+cvec[FP])) 
-		   << "% (" << (int)cvec[TP] << ")" << endl;
-	  cout << "  FP: " << setw(5) << 100*(cvec[FP]/(cvec[TP]+cvec[FP])) 
-		   << "% (" << (int)cvec[FP] << ")" << endl;
-	  cout << "  TN: " << setw(5) << 100*(cvec[TN]/(cvec[TN]+cvec[FN])) 
-		   << "% (" << (int)cvec[TN] << ")" << endl;
-	  cout << "  FN: " << setw(5) << 100*(cvec[FN]/(cvec[TN]+cvec[FN])) 
-		   << "% (" << (int)cvec[FN] << ")" << endl;
-	  cout << "             =====" << endl;
-	  cout << "              " << (int)(cvec[TP]+cvec[FP]+cvec[FN]+cvec[TN]) << endl << endl;
+      cout << "Observed training y-values:" << endl 
+	   << setprecision(0) << fixed << yvec2 << endl << endl;
+      cout << "Training Results (liklihood):" << endl;
+      LLcomp(llvec, wvec, yvec2, xvec2);
+      lvec = llvec;
+      logl = lvec.sum();
+      lvec.exp_elem();
+      lvec.apply_threshold(0.999);
+      cout << setprecision(0) << fixed << lvec << endl;
+      calc_conf(cvec,yvec2,lvec);
+      cout << endl << "Training Confusion numbers:" << endl;
+      cout << setprecision(1) << fixed;
+      cout << "  TP: " << setw(5) << 100*(cvec[TP]/(cvec[TP]+cvec[FP])) 
+	   << "% (" << (int)cvec[TP] << ")" << endl;
+      cout << "  FP: " << setw(5) << 100*(cvec[FP]/(cvec[TP]+cvec[FP])) 
+	   << "% (" << (int)cvec[FP] << ")" << endl;
+      cout << "  TN: " << setw(5) << 100*(cvec[TN]/(cvec[TN]+cvec[FN])) 
+	   << "% (" << (int)cvec[TN] << ")" << endl;
+      cout << "  FN: " << setw(5) << 100*(cvec[FN]/(cvec[TN]+cvec[FN])) 
+	   << "% (" << (int)cvec[FN] << ")" << endl;
+      cout << "             =====" << endl;
+      cout << "              " << (int)(cvec[TP]+cvec[FP]+cvec[FN]+cvec[TN]) << endl << endl;
 
-	  LLcomp(llvec, wvec, yvec1, xvec1);
+      LLcomp(llvec, wvec, yvec1, xvec1);
 
-	  cout << "  *********** TESTING ROC CURVE DATA ************" << endl;
-	  cout << "  ***********************************************" << endl << endl;
-	  cout << "  Threshold   FPR    TPR    Distance From Optimal" << endl;
-	  cout << "  =========   =====  =====  =====================" << endl;
-	  cout << "      0.000   1.00   1.00   1.00" << endl;
+      cout << "  *********** TESTING ROC CURVE DATA ************" << endl;
+      cout << "  ***********************************************" << endl << endl;
+      cout << "  Threshold   FPR    TPR    Distance From Optimal" << endl;
+      cout << "  =========   =====  =====  =====================" << endl;
+      cout << "      0.000   1.00   1.00   1.00" << endl;
 
-	  thr = 0.0;
-	  optDIST = 1.0;
-	  for (int i=0; i<50; i++) {
-		thr += 0.01998;
-		lvec = llvec;
-		lvec.exp_elem();
-		lvec.apply_threshold(thr);
-		calc_conf(cvec,yvec1,lvec);
-		tpr = (cvec[TP]/(cvec[TP]+cvec[FN]));
-		fpr = (cvec[FP]/(cvec[FP]+cvec[TN]));
-		dist = (tpr - 1.0)*(tpr - 1.0) + fpr*fpr;
-		if (dist < optDIST) 
-		  { optDIST = dist; optTPR = tpr; optFPR = fpr; optTHR = thr; }
+      thr = 0.0;
+      optDIST = 1.0;
+      for (int i=0; i<50; i++) {
+	thr += 0.01998;
+	lvec = llvec;
+	lvec.exp_elem();
+	lvec.apply_threshold(thr);
+	calc_conf(cvec,yvec1,lvec);
+	tpr = (cvec[TP]/(cvec[TP]+cvec[FN]));
+	fpr = (cvec[FP]/(cvec[FP]+cvec[TN]));
+	dist = (tpr - 1.0)*(tpr - 1.0) + fpr*fpr;
+	if (dist < optDIST) 
+	  { optDIST = dist; optTPR = tpr; optFPR = fpr; optTHR = thr; }
 
-		cout << setprecision(3)
-			 << "  " << setw(9) << thr
-			 << setprecision(2)
-			 << "  " << setw(5) << fpr
-			 << "  " << setw(5) << tpr
-			 << "  " << setw(5) << dist << endl; 
-	  }
-	  cout << "      1.000   0.00   0.00   1.00" << endl;
-	  cout << endl;
+	cout << setprecision(3)
+	     << "  " << setw(9) << thr
+	     << setprecision(2)
+	     << "  " << setw(5) << fpr
+	     << "  " << setw(5) << tpr
+	     << "  " << setw(5) << dist << endl; 
+      }
+      cout << "      1.000   0.00   0.00   1.00" << endl;
+      cout << endl;
 
-	  outdata(llvec, yvec1, "setdata.js");
+      outdata(llvec, yvec1, "setdata.js");
+      
+      cout << "Optimal threshold: " << setprecision(3) << optTHR << " (TPR = " 
+	   << optTPR << ", FPR = " << setprecision(2) << optFPR << ")" << endl; 
 
-	  cout << "Optimal threshold: " << setprecision(3) << optTHR << " (TPR = " 
-		   << optTPR << ", FPR = " << setprecision(2) << optFPR << ")" << endl; 
-
-	  lvec = llvec;
-	  lvec.exp_elem();
-	  lvec.apply_threshold(optTHR);
-	  calc_conf(cvec,yvec1,lvec);
-	  cout << endl;
-	  cout << "Observed testing y-values:" << endl 
-		   << setprecision(0) << fixed << yvec1 << endl << endl;
-	  cout << "Optimal Testing Results (liklihood):" << endl;
-	  cout << setprecision(0) << fixed << lvec << endl;
-	  cout << endl << "Optimal Testing Confusion numbers:" << endl;
-	  cout << setprecision(1) << fixed;
-	  cout << "  TP: " << setw(5) << 100*(cvec[TP]/(cvec[TP]+cvec[FP])) 
-		   << "% (" << (int)cvec[TP] << ")" << endl;
-	  cout << "  FP: " << setw(5) << 100*(cvec[FP]/(cvec[TP]+cvec[FP])) 
-		   << "% (" << (int)cvec[FP] << ")" << endl;
-	  cout << "  TN: " << setw(5) << 100*(cvec[TN]/(cvec[TN]+cvec[FN])) 
-		   << "% (" << (int)cvec[TN] << ")" << endl;
-	  cout << "  FN: " << setw(5) << 100*(cvec[FN]/(cvec[TN]+cvec[FN])) 
-		   << "% (" << (int)cvec[FN] << ")" << endl;
-	  cout << "             =====" << endl;
-	  cout << "              " << (int)(cvec[TP]+cvec[FP]+cvec[FN]+cvec[TN]) << endl << endl;
-	}
+      lvec = llvec;
+      lvec.exp_elem();
+      lvec.apply_threshold(optTHR);
+      calc_conf(cvec,yvec1,lvec);
+      cout << endl;
+      cout << "Observed testing y-values:" << endl 
+	   << setprecision(0) << fixed << yvec1 << endl << endl;
+      cout << "Optimal Testing Results (liklihood):" << endl;
+      cout << setprecision(0) << fixed << lvec << endl;
+      cout << endl << "Optimal Testing Confusion numbers:" << endl;
+      cout << setprecision(1) << fixed;
+      cout << "  TP: " << setw(5) << 100*(cvec[TP]/(cvec[TP]+cvec[FP])) 
+	   << "% (" << (int)cvec[TP] << ")" << endl;
+      cout << "  FP: " << setw(5) << 100*(cvec[FP]/(cvec[TP]+cvec[FP])) 
+	   << "% (" << (int)cvec[FP] << ")" << endl;
+      cout << "  TN: " << setw(5) << 100*(cvec[TN]/(cvec[TN]+cvec[FN])) 
+	   << "% (" << (int)cvec[TN] << ")" << endl;
+      cout << "  FN: " << setw(5) << 100*(cvec[FN]/(cvec[TN]+cvec[FN])) 
+	   << "% (" << (int)cvec[FN] << ")" << endl;
+      cout << "             =====" << endl;
+      cout << "              " << (int)(cvec[TP]+cvec[FP]+cvec[FN]+cvec[TN]) << endl << endl;
+    }
   }
   else {
 	cout << "Usage:  ./logr [Initial Weights] [y-data] [x-data]" << endl;
   }
-
+  
   return 0;
 }
 
@@ -249,6 +295,7 @@ void calc_conf(Dvect &conf, Dvect &yo, Dvect &yc) {
 ** it into two subsets of the data.  The fraction that goes to the first
 ** output matrix is given by the second argument.
 */
+
 int xmat_split(Dvect *x_input, Dvect &y_input, double fract1, 
 			   Dvect **xout1, Dvect **xout2, Dvect &yout1,
 			   Dvect &yout2) {
@@ -337,6 +384,7 @@ bool read_input(char **argc, Dvect &w, Dvect &y, Dvect **x, bool verbose) {
   return true;
 }
 
+
 void outdata(Dvect &llvec, Dvect &yvec, string fname) {
   ofstream outfile;    // output file
   double   thr = 0.0;  // threshold
@@ -369,7 +417,6 @@ void outdata(Dvect &llvec, Dvect &yvec, string fname) {
   } // end if (outfile) 
 
 } // end outdata()
-
 
 void grad(Dvect &ret, Dvect &w, Dvect &y, Dvect *x) {
   double wTx, f;
@@ -457,6 +504,7 @@ double LL(Dvect &w, Dvect &y, Dvect *x) {
 /*
 ** Overloading the "<<" operator allows outputing the elements to an output stream.
 */
+
 ostream& operator<<(ostream& os, const Dvect& v) {
   os << "[ ";
   for (int i=0; i<v.size(); i++) os << v.element(i) << " ";
@@ -464,28 +512,33 @@ ostream& operator<<(ostream& os, const Dvect& v) {
   return os;
 }
 
+
 /*
 ** Overloading the ">>" operator allows inputing the elements from an input stream.
 */
+
 istream& operator>>(istream& is, Dvect& v) {
-  for (int i=0; i<v.size(); i++) is >> v[i];
+  double d;
+  for (int i=0; i<v.size(); i++) {
+    is >> d;                           // getting the input value
+    if (d != 0.0) v.element_c(i) =  d; // only explicitly add the value if it is nonzero
+  }
   return is;
 }
+
 
 /*
 ** Default constructor.
 */
 Dvect::Dvect(void) { 
-  a  = nullptr;
-  sz = 0;
+  // using resize to initialize the vector to zero size
+  resize(0);
 }
 
 /*
 ** Alternate constructor.
 */
 Dvect::Dvect(int n) { 
-  // setting "a" to nullptr so that the resize function does not attempt to delete it
-  a = nullptr;
   // using the resize function to initialize the vector
   resize(n);
 }
@@ -494,24 +547,110 @@ Dvect::Dvect(int n) {
 ** Copy constructor.
 */
 Dvect::Dvect(const Dvect &v) {
-  // setting "a" to nullptr so that the resize function does not attempt to delete it
-  a = nullptr;
   // using the resize function to initialize the vector, if it works copy the input
   if (resize(v.size())) copy(v);
 }
 
+
 Dvect::~Dvect(void) {
-  // deallocating the memory set aside for the vector
-  if (a != nullptr) delete a;
+  // explicitly erasing the list holding the data
+  a.erase(a.begin(),a.end());
+ }
+
+/*
+** The is_explicit() function returns whether the element is explicitly present in the
+** list.  It will only be explicitly present if the value is nonzero.
+*/
+bool Dvect::is_explicit(int n) const {
+  list<Datapoint>::const_iterator it;
+  it = a.begin();
+  while (it != a.end()) { if ((*it).i == n) return true; it++; } // return true if the index is found
+  return false;                                                  // return false if it is not
 }
 
 /*
-** The following inline functions are simple get/set functions.
+** The count_explicit() function returns the number of elements that are explicitly 
+** present in the list.
 */
-inline double Dvect::element(int i) const { return a[i]; }
-inline void   Dvect::setall(double d)     { for (int i=0; i<sz; i++) a[i] = d; }
-inline void   Dvect::set(int i,double d)  { if (i < sz) a[i] = d; }
-inline int    Dvect::size(void) const     { return sz; }
+int Dvect::count_explicit(void) const {
+  int i=0;
+  list<Datapoint>::const_iterator it;
+  it = a.begin();
+  while (it != a.end()) { i++; it++; } // increment the iterator for each element
+  return i;
+}
+
+/*
+** The remove() function removes an explicit element from the list, which essentially
+** sets it to zero since when that element is referenced in the future a zero will
+** be returned. If the element doesn't exist, it does nothing.
+*/
+void Dvect::remove(int n) {
+  int i=0;
+  list<Datapoint>::iterator it;
+
+  it = a.begin();
+  while (it != a.end()) { 
+    if ((*it).i == n) { a.erase(it); return; } 
+    it++; 
+  } // end while (it)
+
+} // end remove()
+
+/*
+** The element() function extracts an element of a specific ordinal from the list.  It
+** is meant to simulate the behavior of an array from the user perspective.
+*/
+double Dvect::element(int n) const { 
+  list<Datapoint>::const_iterator it;
+
+  it = a.begin();
+  while (it != a.end()) { if ((*it).i == n) return (*it).d; it++; }
+
+  return 0.0; // always returns zero if a corresponding index was not found
+  } // end element()
+
+/*
+** The element_c() function is like the element() function, but it creates a list entry
+** if one was not found and passes back the reference.
+*/
+double& Dvect::element_c(int n) { 
+  list<Datapoint>::iterator it;
+  Datapoint                 dp;
+
+  it = a.begin();
+  while (it != a.end()) { if ((*it).i == n) return (*it).d; it++; }
+
+  dp.i = n;
+  a.push_front(dp);
+  return ((*a.begin()).d); // returns a new element if the index was not found
+  } // end element_c()
+
+/*
+** The setall() function sets every element explicitly to an input value.
+*/
+void Dvect::setall(double d) {
+  Datapoint dp;
+  resize(sz);           // the easiest way is to simply start from scratch since none of the data
+                        // will be retained
+
+  if (d != 0) {         // this only needs to be done if the input value is nonzero
+    dp.d = d;
+    for (int i=0; i<sz; i++) {
+      dp.i = i;
+      a.push_front(dp); // need to create a new element for each entry (eliminates sparsity)
+    }
+  }
+}
+
+/*
+** The set() function sets a specific element to an input value.
+*/
+void Dvect::set(int i,double d) {
+  if (i < sz) element_c(i) = d; 
+}
+
+inline int Dvect::size(void) const     { return sz; }
 
 /*
 ** The "*=" operator when used with two vectors multiplies each of the vectors
@@ -519,7 +658,20 @@ inline int    Dvect::size(void) const     { return sz; }
 ** If the vectors are not of equal size, it does nothing.
 */
 Dvect& Dvect::operator*=(const Dvect &v) {
-  if (v.size() == sz) {	for (int i=0; i<sz; i++) a[i] *= v.a[i]; }
+  double d;
+  int    i;
+  list<Datapoint>::iterator it;
+
+  if (v.size() == sz) {	
+    it = a.begin();
+    while (it != a.end()) {
+      i = (*it).i;
+      d = (*it).d * v[i];
+      if (d != 0.0) { (*it).d = d; it++; }
+      else            it = a.erase(it);
+    } // end while(it)
+  } // end if (v)
+
   return *this;
 }
 
@@ -527,8 +679,15 @@ Dvect& Dvect::operator*=(const Dvect &v) {
 ** This version of the "*=" unary operator simply multiplies every element in the
 ** vector by a constant.
 */
-Dvect& Dvect::operator*=(const double d) {
-  for (int i=0; i<sz; i++) a[i] *= d;
+Dvect& Dvect::operator*=(const double f) {
+  list<Datapoint>::iterator it;
+
+  if (f != 0.0) {
+    it = a.begin();
+    while (it != a.end()) { (*it).d *= f; it++; }
+  } // end if (f)
+  else a.erase(a.begin(),a.end()); // this is the same as removing all explicit elements
+
   return *this;
 }
 
@@ -540,6 +699,7 @@ Dvect Dvect::operator*(const double d) {
   vreturn *= d;
   return vreturn;
 }
+
 
 /*
 ** This version of the  "*" operator multiplies two vectors together element-by-element. 
@@ -556,7 +716,29 @@ Dvect Dvect::operator*(const Dvect &v) {
 ** to this one. If the vectors are not of equal size, it does nothing.
 */
 Dvect& Dvect::operator+=(const Dvect &v) {
-  if (v.size() == sz) {	for (int i=0; i<sz; i++) a[i] += v.a[i]; }
+  double d;
+  int    i;
+  list<Datapoint>::iterator it;
+  list<Datapoint>::const_iterator itc;
+
+  if (v.size() == sz) {	
+
+    it = a.begin();
+    while (it != a.end()) {
+      i = (*it).i;
+      (*it).d += v[i]; 
+      it++;
+    } // end while (it)
+
+    itc = v.a.begin();
+    while (itc != v.a.end()) {
+      i = (*itc).i;
+      if (!is_explicit(i)) element_c(i) += (*itc).d;
+      itc++;
+    } // end while (it)
+
+  } // end if (v)
+
   return *this;
 }
 
@@ -575,7 +757,15 @@ Dvect Dvect::operator+(const Dvect &v) {
 ** from this one. If the vectors are not of equal size, it does nothing.
 */
 Dvect& Dvect::operator-=(const Dvect &v) {
-  if (v.size() == sz) {	for (int i=0; i<sz; i++) a[i] -= v.a[i]; }
+  Dvect temp;
+
+  if (v.size() == sz) {	
+    temp = v;
+    temp *= -1;
+    temp += *this;
+    copy(temp);
+  } // end if
+
   return *this;
 }
 
@@ -599,24 +789,27 @@ Dvect& Dvect::operator=(const Dvect &v) {
   return *this;
 }
 
+
 /*
 ** This assignment operator uses the setall() function to copy a double to every element
 ** in the vector.
 */
+/*
 Dvect& Dvect::operator=(const double d) {
   setall(d);
   return *this;
 }
+*/
 
 /*
-** The bracket ("[]") operator allows accessing an individual element in the vector.
+** The bracket ("[]") operator allows accessing an individual element in the vector. The first
+** version is the "get" function, and the second version is the "set" function.
 */
 double Dvect::operator[](int i) const{
-  if (i < sz) return a[i]; else return a[sz-1];
+  if (i < sz) return element(i); else return element(sz-1);
 }
-
 double& Dvect::operator[](int i) {
-  if (i < sz) return a[i]; else return a[sz-1];
+  if (i < sz) return element_c(i); else return element_c(sz-1);
 }
 
 
@@ -624,17 +817,10 @@ double& Dvect::operator[](int i) {
 ** The resize() function resizes the vectors and destroys the data (sets to zero).
 */
 bool Dvect::resize(int n) {
-  // if the array is already allocated, deallocate it
-  if (a != nullptr) delete a;
-  // allocating a new vector ("a" for array)
-  a = new double[n];
-  // if the allocation was a success, the size is stored in "size"
-  // otherwise, size is set to -1
-  if (a != nullptr) sz = n; else sz = -1;
-  // initializing the new vector with all zeroes
-  for (int i=0; i<n; i++) a[i]=0;
-
-  if (sz == -1) return false; else return true;
+  // if ensure that the list is empty
+  a.erase(a.begin(),a.end());
+  sz = n;
+  return true; // this basic case always returns true
 }
 
 /*
@@ -642,30 +828,52 @@ bool Dvect::resize(int n) {
 ** if they are the same size.  Otherwise, it does nothing and returns "false".
 */
 bool Dvect::copy(const Dvect &v) {
-  if (v.size() == sz) {	for (int i=0; i<sz; i++) a[i]=v.a[i]; return true;  }
-  else                {                                       return false; }
-}
+  if (v.size() == sz) {	
+    for (int i=0; i<sz; i++) { if (v.is_explicit(i)) element_c(i) = v[i]; }
+    return true;  
+  }
+  else { return false; }
+} // end copy()
 
 /*
 ** The sum() function returns a summation of all elements in a vector.
 */
 double Dvect::sum(void) {
+  list<Datapoint>::iterator it;
   double sum=0.0;
-  for (int i=0; i<sz; i++) sum+=a[i];
+
+  it = a.begin();
+  while (it != a.end()) {
+    sum += (*it).d;
+    it++;
+  } // end while (it)
+
   return sum;
-}
+} // end sum()
 
 /*
 ** The exp() function takes the exponential function of every element.
 */
 void Dvect::exp_elem(void) {
-  for (int i=0; i<sz; i++) a[i] = exp(a[i]);
-}
+  double d;
+
+  for (int i=0; i<sz; i++) {
+    d = exp(element(i));
+    if (d > 0.00001) element_c(i) = d; else remove(i);
+  } // end for (i)
+
+} // exp_elem()
 
 /*
 ** The apply_threshold() function sets values greater than or equal to
 ** the threshold to one and values less than the threshold to zero.
 */
-void Dvect::apply_threshold(double d) {
-  for (int i=0; i<sz; i++) a[i] = (a[i] >= d)?1.0:0.0;
-}
+void Dvect::apply_threshold(double f) {
+  double d;
+
+  for (int i=0; i<sz; i++) {
+    d = element(i);
+    if (d >= f) element_c(i) = 1.0; else remove(i);
+  } // end for (i)
+
+} // end apply_threshold()
