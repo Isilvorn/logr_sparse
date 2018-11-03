@@ -14,67 +14,75 @@
 #include <random>
 #include <math.h>
 #include <list>
+#include <cstring>
 
 using namespace std;
 
+// cache size for Svect
+#define CSZ 32
+
 /*
-** Datapoint is a struct that contains the data for Dvect.
+** Datapoint is a struct that contains the data for Svect.
 */
 struct Datapoint {
 public:
-  Datapoint()         { d = 0.0; } // default constructor initializes as zero
-  Datapoint(double f) { d = f; }   // alternate constructor initializes with supplied value
-  ~Datapoint()        { }          // destructor does nothing
+  Datapoint()         { d = 0.0; }  // default constructor initializes as zero
+  Datapoint(double f) { d = f; }    // alternate constructor initializes with supplied value
+  ~Datapoint()        { }           // destructor does nothing
 
-  double d;                        // the double precision element of the data
-  int    i;                        // the index of the data (like an array index)
+  double d;                         // the double precision element of the data
+  int    i;                         // the index of the data (like an array index)
   
 };
 
 /*
-** Dvect is a class set up to store and manipulate a double precision vector.
+** Svect is a class set up to store and manipulate a double precision vector.
 */
-class Dvect {
+class Svect {
 public:
-  Dvect(void);                     // default constructor
-  Dvect(int);                      // alternate constructor
-  Dvect(const Dvect&);             // copy constructor
-  ~Dvect();                        // destructor
+  Svect(void);                       // default constructor
+  Svect(int);                        // alternate constructor
+  Svect(const Svect&);               // copy constructor
+  ~Svect();                          // destructor
 
-  double  element(int) const;       // gets the value of a specific element in the vector
-  double& element_c(int);           // returns a reference to an element's data
-  void    setall(double);           // sets all elements of a vector to the argument value
-  void    set(int,double);          // sets a specific element to the argument value
-  int     size(void) const;         // gets the size of the vector
+  double  element(int) const;        // gets the value of a specific element in the vector
+  double& element_c(int);            // returns a reference to an element's data
+  void    setall(double);            // sets all elements of a vector to the argument value
+  void    sete(int,double);          // sets a specific element to the argument value
+  void    sete(list<Datapoint>::iterator&, double);
+  int     size(void) const;          // gets the size of the vector
 
-  Dvect& operator*=(const double); // multiplies the vector by a constant
-  Dvect  operator*(const double);  // multiplies a vector by a constant
-  Dvect& operator*=(const Dvect&); // multiplies the vector element-by-element with another
-  Dvect  operator*(const Dvect&);  // multiplies two vectors element-by-element
-  Dvect& operator+=(const Dvect&); // adds the vector element-by-element with another
-  Dvect  operator+(const Dvect&);  // adds two vectors together element-by-element
-  Dvect& operator-=(const Dvect&); // subtracts another vector element-by-element from this one  
-  Dvect  operator-(const Dvect&);  // subtracts two vectors element-by-element
-  Dvect& operator=(const double);  // sets all elements of a vector to a specific value
-  Dvect& operator=(const Dvect&);  // sets the elements to the same as those of another
-  double operator[](int) const;    // allows accessing an individual element via brackets
-  double& operator[](int);         // allows setting an individual element via brackets
+  Svect& operator*=(const double);   // multiplies the vector by a constant
+  Svect  operator*(const double);    // multiplies a vector by a constant
+  Svect& operator*=(const Svect&);   // multiplies the vector element-by-element with another
+  Svect  operator*(const Svect&);    // multiplies two vectors element-by-element
+  Svect& operator+=(const Svect&);   // adds the vector element-by-element with another
+  Svect  operator+(const Svect&);    // adds two vectors together element-by-element
+  Svect& operator-=(const Svect&);   // subtracts another vector element-by-element from this one  
+  Svect  operator-(const Svect&);    // subtracts two vectors element-by-element
+  Svect& operator=(const double);    // sets all elements of a vector to a specific value
+  Svect& operator=(const Svect&);    // sets the elements to the same as those of another
+  double operator[](int) const;      // allows accessing an individual element via brackets
+  double& operator[](int);           // allows setting an individual element via brackets
 
   bool   is_explicit(int) const;     // returns whether an element is explicitly present
   int    count_explicit(void) const; // returns the number of explicit entries in the list
   void   remove(int);                // removes an explicit element (sets it to zero)
+  list<Datapoint>::iterator remove(list<Datapoint>::iterator&);
   bool   resize(int);                // discards the data and sets the vector size to a new value
-  bool   copy(const Dvect&);         // copies the data from an input vector to this one
+  bool   copy(const Svect&);         // copies the data from an input vector to this one
   double sum(void);                  // returns the summation of all elements of this vector
   void   exp_elem(void);             // takes the exponential function of every element
   void   apply_threshold(double);    // sets values >= threshold to 1 and < threshold to 0
 
-  friend ostream& operator<<(ostream&,const Dvect&); // outputs all elements to a stream
-  friend istream& operator>>(istream&, Dvect&);      // inputs n elements from a stream
+  friend ostream& operator<<(ostream&,const Svect&); // outputs all elements to a stream
+  friend istream& operator>>(istream&, Svect&);      // inputs n elements from a stream
 
 private:
-  list<Datapoint> a;               // the list containing the data for the vector
-  int     sz;                      // the size of the vector
+  list<Datapoint> a;                 // the list containing the data for the vector
+  int     sz;                        // the size of the vector
+  list<Datapoint>::iterator cache_data[CSZ];  // cache for speedier access
+  int                       cache_index[CSZ];
 };
 
 #define TP 0 // true positive
@@ -82,30 +90,32 @@ private:
 #define FN 2 // false negative
 #define TN 3 // true negative
 
-// read_input reads the input files and stores the data in the Dvect class
-bool   read_input(char **, Dvect&, Dvect&, Dvect**, bool=true);
+// read_input reads the input files and stores the data in the Svect class
+bool   read_input(char **, Svect&, Svect&, Svect**, bool=true);
 // calculates the gradient from a weight, y-observations, and features
-void   grad(Dvect&, Dvect&, Dvect&, Dvect*);
-void   gradest(Dvect&, Dvect&, Dvect&, Dvect*);
+void   grad(Svect&, Svect&, Svect&, Svect*);
+void   gradest(Svect&, Svect&, Svect&, Svect*);
 // calculates the objective function
-void   LLcomp(Dvect&, Dvect&, Dvect&, Dvect*);
-double LL(Dvect&, Dvect&, Dvect*);
+void   LLcomp(Svect&, Svect&, Svect&, Svect*);
+double LL(Svect&, Svect&, Svect*);
 // calculate the next set of weights
-void   getnext(Dvect&, Dvect&, double);
+void   getnext(Svect&, Svect&, double);
 // iterate to a solution: 
 // getsoln(weights, y-objserved, features, delta-criteria, max-iterations)
-int    getsoln(Dvect&, Dvect&, Dvect*, double=0.001, int=100);
+int    getsoln(Svect&, Svect&, Svect*, double=0.001, int=100);
+// the predictive function
+void   pred(Svect&, Svect&, Svect*);
 // calculates True Positives (TP), False Positives (FP), True Negatives(TN),
 // and False Negatives (FN)
-void   calc_conf(Dvect&, Dvect&, Dvect&);
+void   calc_conf(Svect&, Svect&, Svect&);
 // randomly splits the x-matrix (features) into two subsets of the data
 // xvec_split(input-xmatrix, input-ymatrix, fraction-to-matrix1, input-size, 
 //            x-matrix1-output, x-matrix2-output, y-matrix1-output,
 //            y-matrix2-output)
-int xmat_split(Dvect*, Dvect&, double, Dvect**, Dvect**, Dvect&, Dvect&);
+int xmat_split(Svect*, Svect&, double, Svect**, Svect**, Svect&, Svect&);
 // outputs the FPR/TPR data in a format that will allow the custom html file
 // to display it as a graphic
-void outdata(Dvect&, Dvect&, string); 
+void outdata(Svect&, Svect&, string); 
 
 int main(int argv, char **argc) {
 
@@ -114,16 +124,28 @@ int main(int argv, char **argc) {
 	cout << argc[i] << " ";
   cout << endl;
 
-  Dvect    wvec;            // weights input file
-  Dvect    yvec;            // observed y-values
-  Dvect    yvec1;           // observations subset #1
-  Dvect    yvec2;           // observations subset #2
-  Dvect   *xvec  = nullptr; // features (array size is number of examples supported)
-  Dvect   *xvec1 = nullptr; // features subset #1
-  Dvect   *xvec2 = nullptr; // features subset #2
-  Dvect    lvec;            // reults (liklihood) with threshold applied
-  Dvect    llvec;           // log liklihood components
-  Dvect    cvec;            // confusion vector
+  /*
+  Svect test1(5), test2(5);
+
+  cout << "enter 5 values: ";
+  cin  >> test1;
+  cout << "you entered: " << test1 << endl;
+  test2 = test1;
+  cout << "after assignment, test2 = " << test2 << endl;
+  test1[2] = 234;
+  test1[4] = 432;
+  cout << "after changing, test1 = " << test1 << endl;
+  */  
+  Svect    wvec;            // weights input file
+  Svect    yvec;            // observed y-values
+  Svect    yvec1;           // observations subset #1
+  Svect    yvec2;           // observations subset #2
+  Svect   *xvec  = nullptr; // features (array size is number of examples supported)
+  Svect   *xvec1 = nullptr; // features subset #1
+  Svect   *xvec2 = nullptr; // features subset #2
+  Svect    lvec;            // reults (liklihood) with threshold applied
+  Svect    llvec;           // log liklihood components
+  Svect    cvec;            // confusion vector
   int      niter;           // number of iterations used
   int      n1;              // the size of the subset matrix #1
   double   logl;            // the aggregate log-liklihood
@@ -136,8 +158,8 @@ int main(int argv, char **argc) {
   if (argv == 4) {
     if (read_input(argc, wvec, yvec, &xvec, false)) {
       n1 = xmat_split(xvec, yvec, 0.333, &xvec1, &xvec2, yvec1, yvec2);
-      cout << "  Training data: " << (yvec.size()-n1) << " examples" << endl;
-      cout << "  Testing data : " <<  n1 << " examples" << endl;
+      cout << "  Training data: " << yvec2.size() << " examples" << endl;
+      cout << "  Testing data : " <<  yvec1.size() << " examples" << endl;
       niter = getsoln(wvec, yvec2, xvec2, 0.001, 10000);
       cout << endl << "Solution after " << niter << " iterations: " << endl;
       cout << wvec << endl << endl;
@@ -145,10 +167,9 @@ int main(int argv, char **argc) {
       cout << "Observed training y-values:" << endl 
 	   << setprecision(0) << fixed << yvec2 << endl << endl;
       cout << "Training Results (liklihood):" << endl;
-      LLcomp(llvec, wvec, yvec2, xvec2);
-      lvec = llvec;
-      logl = lvec.sum();
-      lvec.exp_elem();
+
+      lvec.resize(yvec2.size());
+      pred(lvec, wvec, xvec2);
       lvec.apply_threshold(0.999);
       cout << setprecision(0) << fixed << lvec << endl;
       calc_conf(cvec,yvec2,lvec);
@@ -165,20 +186,20 @@ int main(int argv, char **argc) {
       cout << "             =====" << endl;
       cout << "              " << (int)(cvec[TP]+cvec[FP]+cvec[FN]+cvec[TN]) << endl << endl;
 
-      LLcomp(llvec, wvec, yvec1, xvec1);
-
       cout << "  *********** TESTING ROC CURVE DATA ************" << endl;
       cout << "  ***********************************************" << endl << endl;
       cout << "  Threshold   FPR    TPR    Distance From Optimal" << endl;
       cout << "  =========   =====  =====  =====================" << endl;
       cout << "      0.000   1.00   1.00   1.00" << endl;
 
+      llvec.resize(yvec1.size());
+      pred(llvec, wvec, xvec1);
+
       thr = 0.0;
       optDIST = 1.0;
       for (int i=0; i<50; i++) {
 	thr += 0.01998;
 	lvec = llvec;
-	lvec.exp_elem();
 	lvec.apply_threshold(thr);
 	calc_conf(cvec,yvec1,lvec);
 	tpr = (cvec[TP]/(cvec[TP]+cvec[FN]));
@@ -203,7 +224,6 @@ int main(int argv, char **argc) {
 	   << optTPR << ", FPR = " << setprecision(2) << optFPR << ")" << endl; 
 
       lvec = llvec;
-      lvec.exp_elem();
       lvec.apply_threshold(optTHR);
       calc_conf(cvec,yvec1,lvec);
       cout << endl;
@@ -228,7 +248,7 @@ int main(int argv, char **argc) {
   else {
 	cout << "Usage:  ./logr [Initial Weights] [y-data] [x-data]" << endl;
   }
-  
+
   return 0;
 }
 
@@ -237,19 +257,23 @@ int main(int argv, char **argc) {
 ** function change from one iteration to the next is less than espsilon, or the
 ** max number of iterations is reached.
 */
-int getsoln(Dvect &w, Dvect &y, Dvect *x, double epsilon, int maxiter) {
+int getsoln(Svect &w, Svect &y, Svect *x, double epsilon, int maxiter) {
   int    i;            // counter
   double ll, ll_old;   // objective function values
   double alpha = 0.001;// speed at which to converge using the gradient
-  Dvect  dk(w.size()); // temp variable for the gradient
+  Svect  dk(w.size()); // temp variable for the gradient
 
   ll = ll_old = 0.0;
   for (i=0; i<maxiter; i++) {
-	grad(dk, w, y, x);
-	ll_old = ll;
-	ll     = LL(w, y, x);
+    grad(dk, w, y, x);
+    //cout << "dk = " << dk << endl;
+    //cout << "w = " << w <<endl;
+    //cout << "y = " << y << endl;
+    //cout << "x = " << x[i] << endl;
+    ll_old = ll;
+    ll     = LL(w, y, x);
     if (fabs(ll_old-ll) < epsilon) break;
-	getnext(w, dk, alpha);
+    getnext(w, dk, alpha);
   }
 
   return i;
@@ -261,7 +285,7 @@ int getsoln(Dvect &w, Dvect &y, Dvect *x, double epsilon, int maxiter) {
 ** confusion matrix using the observed y values and the calculated y-values
 ** as inputs.
 */
-void calc_conf(Dvect &conf, Dvect &yo, Dvect &yc) {
+void calc_conf(Svect &conf, Svect &yo, Svect &yc) {
   conf.resize(4);
   if (yo.size() == yc.size()) {
 	for (int i=0; i<yo.size(); i++) {
@@ -279,9 +303,9 @@ void calc_conf(Dvect &conf, Dvect &yo, Dvect &yc) {
 ** output matrix is given by the second argument.
 */
 
-int xmat_split(Dvect *x_input, Dvect &y_input, double fract1, 
-			   Dvect **xout1, Dvect **xout2, Dvect &yout1,
-			   Dvect &yout2) {
+int xmat_split(Svect *x_input, Svect &y_input, double fract1, 
+			   Svect **xout1, Svect **xout2, Svect &yout1,
+			   Svect &yout2) {
   int    n1, n2;  // number of examples for matrix #1 & #2
   int    nsize;   // size of input
   int    i, j, k; // counters
@@ -296,8 +320,8 @@ int xmat_split(Dvect *x_input, Dvect &y_input, double fract1,
 	n1     = (int)(fract1 * nsize);
 	n2     = (int)(nsize - n1);
 
-	*xout1 = new Dvect[n1];
-	*xout2 = new Dvect[n2];
+	*xout1 = new Svect[n1];
+	*xout2 = new Svect[n2];
 	yout1.resize(n1);
 	yout2.resize(n2);
 
@@ -317,9 +341,9 @@ int xmat_split(Dvect *x_input, Dvect &y_input, double fract1,
 
 /*
 ** The read_input() function reads the input files and stores the data in
-** the Dvect class for use in the solution convergence algorithm.
+** the Svect class for use in the solution convergence algorithm.
 */
-bool read_input(char **argc, Dvect &w, Dvect &y, Dvect **x, bool verbose) {
+bool read_input(char **argc, Svect &w, Svect &y, Svect **x, bool verbose) {
   ifstream infile;
   int      nFeatures, nExamples;
 
@@ -331,7 +355,7 @@ bool read_input(char **argc, Dvect &w, Dvect &y, Dvect **x, bool verbose) {
 	infile >> nFeatures >> nExamples;
 	cout << "  (" << nFeatures << " features, " 
 		 << nExamples << " examples)" << endl;
-	*x = new Dvect[nExamples];
+	*x = new Svect[nExamples];
 	for (int i=0; i<nExamples; i++) (*x)[i].resize(nFeatures);
 	w.resize(nFeatures);
 	y.resize(nExamples);
@@ -368,12 +392,12 @@ bool read_input(char **argc, Dvect &w, Dvect &y, Dvect **x, bool verbose) {
 }
 
 
-void outdata(Dvect &llvec, Dvect &yvec, string fname) {
+void outdata(Svect &llvec, Svect &yvec, string fname) {
   ofstream outfile;    // output file
   double   thr = 0.0;  // threshold
   double   tpr, fpr;   // temp variables for true/false postive rates
   double   dist;       // distance from optimal
-  Dvect    lvec, cvec; // liklihood and counter vectors
+  Svect    lvec, cvec; // liklihood and counter vectors
 
   outfile.open(fname);
   if (outfile.is_open()) {
@@ -383,7 +407,6 @@ void outdata(Dvect &llvec, Dvect &yvec, string fname) {
     for (int i=0; i<50; i++) {
       thr += 0.01998;
       lvec = llvec;
-      lvec.exp_elem();
       lvec.apply_threshold(thr);
       calc_conf(cvec,yvec,lvec);
       tpr = (cvec[TP]/(cvec[TP]+cvec[FN]));
@@ -401,24 +424,23 @@ void outdata(Dvect &llvec, Dvect &yvec, string fname) {
 
 } // end outdata()
 
-void grad(Dvect &ret, Dvect &w, Dvect &y, Dvect *x) {
+void grad(Svect &ret, Svect &w, Svect &y, Svect *x) {
   double wTx, f;
-  Dvect  a, c;
+  Svect  a, c;
 
   ret.resize(w.size());
   for (int i=0; i<y.size(); i++) {
-	a    = x[i] * y[i];
-	wTx  = (w * x[i]).sum();
-	f    = exp(wTx)/(1+exp(wTx));
-	c    = x[i] * f;
-	ret += (a - c);
+    a    = x[i] * y[i];
+    wTx  = (w * x[i]).sum();
+    f    = exp(wTx)/(1+exp(wTx));
+    c    = x[i] * f;
+    ret += (a - c);
   }
-
 }
 
-void gradest(Dvect &ret, Dvect &w, Dvect &y, Dvect *x) {
+void gradest(Svect &ret, Svect &w, Svect &y, Svect *x) {
   double wTx, alpha, x1, x2, y1, y2, l1, l2;
-  Dvect  w1, w2;
+  Svect  w1, w2;
 
   alpha = 0.001;
   w1 = w;
@@ -446,41 +468,56 @@ void gradest(Dvect &ret, Dvect &w, Dvect &y, Dvect *x) {
 ** at an input speed.  A speed of 1.0 would apply the entire extrapolation,
 ** while a speed of 0.5 would be half speed, and so on.
 */
-void getnext(Dvect &w, Dvect &dk, double speed) {
-  Dvect  wold(w);
+void getnext(Svect &w, Svect &dk, double speed) {
+  Svect  wold(w);
 
   // each element of dk is a slope pointed toward the minimum objective
   // function value
   w = wold + dk*speed;
+  //cout << "wold = " << wold << endl;
+  //cout << "dk = " << dk << endl;
+  //cout << "speed = " << speed << endl;
+  //cout << "w = " << w << endl;
 
 }
 
 /*
 ** Calculate the components of the Log Liklihood (LL) objective function.
 */
-void LLcomp(Dvect &l, Dvect &w, Dvect &y, Dvect *x) {
+void LLcomp(Svect &l, Svect &w, Svect &y, Svect *x) {
   double wTx, a, b;
 
   l.resize(y.size());
   for (int i=0; i<l.size(); i++) {
-	wTx  = (w * x[i]).sum();
-	l[i] = y[i] * wTx - log(1 + exp(wTx));
+    wTx  = (w * x[i]).sum();
+    l[i] = y[i] * wTx - log(1 + exp(wTx));
   }
-
 }
 
 /*
 ** The Log Liklihood (LL) objective function.
 */
-double LL(Dvect &w, Dvect &y, Dvect *x) {
-  Dvect ret;
+double LL(Svect &w, Svect &y, Svect *x) {
+  Svect ret;
   LLcomp(ret, w, y, x);
   return ret.sum();
 }
 
 /*
+** The predictive function. "y" is the output in this case.
+*/
+void pred(Svect &y, Svect &w, Svect *x) {
+  double wTx;
+
+  for (int i=0; i<y.size(); i++) {
+    wTx  = (w * x[i]).sum();
+    y[i] = exp(wTx)/(1 + exp(wTx));
+  }
+}
+
+/*
 ******************************************************************************
-******************** Dvect CLASS DEFINITION BELOW HERE ***********************
+******************** Svect CLASS DEFINITION BELOW HERE ***********************
 ******************************************************************************
 */
 
@@ -488,7 +525,7 @@ double LL(Dvect &w, Dvect &y, Dvect *x) {
 ** Overloading the "<<" operator allows outputing the elements to an output stream.
 */
 
-ostream& operator<<(ostream& os, const Dvect& v) {
+ostream& operator<<(ostream& os, const Svect& v) {
   os << "[ ";
   for (int i=0; i<v.size(); i++) os << v.element(i) << " ";
   os << "]";
@@ -500,7 +537,7 @@ ostream& operator<<(ostream& os, const Dvect& v) {
 ** Overloading the ">>" operator allows inputing the elements from an input stream.
 */
 
-istream& operator>>(istream& is, Dvect& v) {
+istream& operator>>(istream& is, Svect& v) {
   double d;
   for (int i=0; i<v.size(); i++) {
     is >> d;                           // getting the input value
@@ -513,19 +550,19 @@ istream& operator>>(istream& is, Dvect& v) {
 /*
 ** Default constructor.
 */
-inline Dvect::Dvect(void) { resize(0); }
+inline Svect::Svect(void) { resize(0); }
 
 /*
 ** Alternate constructor.
 */
-inline Dvect::Dvect(int n) { resize(n); }
+inline Svect::Svect(int n) { resize(n); }
 
 /*
 ** Copy constructor.
 */
-inline Dvect::Dvect(const Dvect &v) { copy(v); }
+inline Svect::Svect(const Svect &v) { copy(v); }
 
-inline Dvect::~Dvect(void) {
+inline Svect::~Svect(void) {
   // explicitly erasing the list holding the data before destroying the object
   a.erase(a.begin(),a.end());
  }
@@ -534,7 +571,7 @@ inline Dvect::~Dvect(void) {
 ** The is_explicit() function returns whether the element is explicitly present in the
 ** list.  It will only be explicitly present if the value is nonzero.
 */
-bool Dvect::is_explicit(int n) const {
+bool Svect::is_explicit(int n) const {
   list<Datapoint>::const_iterator it;
   it = a.begin();
   while (it != a.end()) { if ((*it).i == n) return true; it++; } // return true if the index is found
@@ -545,59 +582,95 @@ bool Dvect::is_explicit(int n) const {
 ** The count_explicit() function returns the number of elements that are explicitly 
 ** present in the list.
 */
-int Dvect::count_explicit(void) const { return a.size(); }
+int Svect::count_explicit(void) const { return a.size(); }
 
 /*
 ** The remove() function removes an explicit element from the list, which essentially
 ** sets it to zero since when that element is referenced in the future a zero will
 ** be returned. If the element doesn't exist, it does nothing.
 */
-void Dvect::remove(int n) {
+void Svect::remove(int n) {
   int i=0;
   list<Datapoint>::iterator it;
 
-  it = a.begin();
-  while (it != a.end()) { 
-    if ((*it).i == n) { a.erase(it); return; } 
-    it++; 
-  } // end while (it)
+  if (cache_index[n%CSZ] == n) { 
+    a.erase(cache_data[n%CSZ]); 
+    cache_index[n%CSZ] = -1; 
+    return; 
+  } // end if (cache_index)
+  else {
+    it = a.begin();
+    while (it != a.end()) { 
+      if ((*it).i == n) { a.erase(it); return; }
+      it++; 
+    } // end while (it)
+
+  } // end else (cache_index)
 
 } // end remove()
+
+// this version takes an iterator as input
+list<Datapoint>::iterator Svect::remove(list<Datapoint>::iterator &it) {
+  if (cache_index[(*it).i%CSZ] == (*it).i) cache_index[(*it).i%CSZ] = -1;
+  return a.erase(it);
+}
 
 /*
 ** The element() function extracts an element of a specific ordinal from the list.  It
 ** is meant to simulate the behavior of an array from the user perspective.
 */
-double Dvect::element(int n) const { 
+double Svect::element(int n) const { 
   list<Datapoint>::const_iterator it;
 
-  it = a.begin();
-  while (it != a.end()) { if ((*it).i == n) return (*it).d; it++; }
+  if (cache_index[n%CSZ] == n) return (*(cache_data[n%CSZ])).d;
+  else {
+    it = a.begin();
+    while (it != a.end()) { 
+      if ((*it).i == n) {
+	return (*it).d; 
+      } // end if (it)
+      it++; 
+    } // end while (it)
+  } // end else (cache_index)
 
   return 0.0; // always returns zero if a corresponding index was not found
-  } // end element()
+} // end element()
 
 /*
 ** The element_c() function is like the element() function, but it creates a list entry
 ** if one was not found and passes back the reference.
 */
-double& Dvect::element_c(int n) { 
+double& Svect::element_c(int n) { 
   list<Datapoint>::iterator it;
   Datapoint                 dp;
 
-  it = a.begin();
-  while (it != a.end()) { if ((*it).i == n) return (*it).d; it++; }
+  if (cache_index[n%CSZ] == n) return (*(cache_data[n%CSZ])).d;
+  else {
+    it = a.begin();
+    while (it != a.end()) { 
+      if ((*it).i == n) {
+	cache_index[n%CSZ] = n;
+	cache_data[n%CSZ]  = it;
+	return (*it).d;
+      } // end if (it)
+      it++; 
+    } // end while (it)
 
-  dp.i = n;
-  a.push_front(dp);
-  return ((*a.begin()).d); // returns a new element if the index was not found
-  } // end element_c()
+    dp.i = n;
+    a.push_front(dp);
+    cache_index[n%CSZ] = n;
+    cache_data[n%CSZ]  = a.begin();
+    return ((*a.begin()).d); // returns a new element if the index was not found
+
+  } // end else (cache_index)
+
+} // end element_c()
 
 /*
 ** The setall() function sets every element explicitly to an input value. Note that this eliminates
 ** sparsity.
 */
-void Dvect::setall(double d) {
+void Svect::setall(double d) {
   Datapoint dp;
   resize(sz);           // the easiest way is to simply start from scratch since none of the data
                         // will be retained
@@ -607,26 +680,39 @@ void Dvect::setall(double d) {
     for (int i=0; i<sz; i++) {
       dp.i = i;
       a.push_front(dp); // need to create a new element for each entry (eliminates sparsity)
+      cache_index[i%CSZ] = i;
+      cache_data[i%CSZ] = a.begin();
     }
   }
 }
 
 /*
-** The set() function sets a specific element to an input value.
+** The sete() function sets a specific element to an input value.  If the subscript is out of range,
+** it does nothing.
 */
-inline void Dvect::set(int i,double d) { if (i < sz) element_c(i) = d; }
+inline void Svect::sete(int i,double d) { if (i < sz) element_c(i) = d; }
+
+/*
+** This version of set uses an iterator instead of an index.
+*/
+void Svect::sete(list<Datapoint>::iterator &it, double d) {
+  (*it).d = d;
+  cache_index[(*it).i%CSZ] = (*it).i;
+  cache_data[(*it).i%CSZ]  = it;
+}
+
 
 /*
 ** The size() function returns the nominal size of the vector.
 */
-inline int Dvect::size(void) const { return sz; }
+inline int Svect::size(void) const { return sz; }
 
 /*
 ** The "*=" operator when used with two vectors multiplies each of the vectors
 ** together element-by-element.  This does not correspond to a true matrix multiplication.
 ** If the vectors are not of equal size, it does nothing.
 */
-Dvect& Dvect::operator*=(const Dvect &v) {
+Svect& Svect::operator*=(const Svect &v) {
   double d;
   int    i;
   list<Datapoint>::iterator it;
@@ -636,8 +722,11 @@ Dvect& Dvect::operator*=(const Dvect &v) {
     while (it != a.end()) {
       i = (*it).i;
       d = (*it).d * v[i];
-      if (d != 0.0) { (*it).d = d; it++; }
-      else            it = a.erase(it);
+      //if (d != 0.0) { (*it).d = d; it++; }
+      //else            it = a.erase(it);
+
+      if (d != 0.0) { sete(it,d); it++; }
+      else            it = remove(it);
     } // end while(it)
   } // end if (v)
 
@@ -648,14 +737,19 @@ Dvect& Dvect::operator*=(const Dvect &v) {
 ** This version of the "*=" unary operator simply multiplies every element in the
 ** vector by a constant.
 */
-Dvect& Dvect::operator*=(const double f) {
+Svect& Svect::operator*=(const double f) {
   list<Datapoint>::iterator it;
+  double d;
 
   if (f != 0.0) {
     it = a.begin();
-    while (it != a.end()) { (*it).d *= f; it++; }
+    while (it != a.end()) { 
+      d = (*it).d * f;
+      sete(it, d); 
+      it++; 
+    }
   } // end if (f)
-  else a.erase(a.begin(),a.end()); // this is the same as removing all explicit elements
+  else resize(sz); // this is the same as removing all explicit elements
 
   return *this;
 } // end "*=" operator definition
@@ -663,8 +757,8 @@ Dvect& Dvect::operator*=(const double f) {
 /*
 ** This version of the "*" operator multiplies a vector by a constant.
 */
-Dvect Dvect::operator*(const double d) {
-  Dvect vreturn(*this);
+Svect Svect::operator*(const double d) {
+  Svect vreturn(*this);
   vreturn *= d;
   return vreturn;
 } // end "*" operator definition
@@ -674,8 +768,8 @@ Dvect Dvect::operator*(const double d) {
 ** This version of the  "*" operator multiplies two vectors together element-by-element. 
 ** If the vectors are not of equal size, it returns the vector on the lhs of the "*".
 */
-Dvect Dvect::operator*(const Dvect &v) {
-  Dvect vreturn(*this);
+Svect Svect::operator*(const Svect &v) {
+  Svect vreturn(*this);
   vreturn *= v;
   return vreturn;
 } // end "*" operator definition
@@ -684,7 +778,7 @@ Dvect Dvect::operator*(const Dvect &v) {
 ** The "+=" operator when used with two vectors adds another vector element-by-element.
 ** to this one. If the vectors are not of equal size, it does nothing.
 */
-Dvect& Dvect::operator+=(const Dvect &v) {
+Svect& Svect::operator+=(const Svect &v) {
   int    i;
   list<Datapoint>::const_iterator itc;
 
@@ -705,8 +799,8 @@ Dvect& Dvect::operator+=(const Dvect &v) {
 ** The "+" operator adds two vectors together element-by-element. If the vectors are
 ** not of equal size, it returns the vector on the lhs of the "+".
 */
-Dvect Dvect::operator+(const Dvect &v) {
-  Dvect vreturn(*this);
+Svect Svect::operator+(const Svect &v) {
+  Svect vreturn(*this);
   vreturn += v;
   return vreturn;
 } // end "+" operator defnition
@@ -715,7 +809,7 @@ Dvect Dvect::operator+(const Dvect &v) {
 ** The "-=" operator when used with two vectors subtracts another vector element-by-element.
 ** from this one. If the vectors are not of equal size, it does nothing.
 */
-Dvect& Dvect::operator-=(const Dvect &v) {
+Svect& Svect::operator-=(const Svect &v) {
   int i;
   list<Datapoint>::const_iterator itc;
 
@@ -736,8 +830,8 @@ Dvect& Dvect::operator-=(const Dvect &v) {
 ** The "-" operator subtracts two vectors element-by-element. If the vectors are
 ** not of equal size, it returns the vector on the lhs of the "-".
 */
-Dvect Dvect::operator-(const Dvect &v) {
-  Dvect vreturn(*this);
+Svect Svect::operator-(const Svect &v) {
+  Svect vreturn(*this);
   vreturn -= v;
   return vreturn;
 } // end "-" operator definition
@@ -746,22 +840,22 @@ Dvect Dvect::operator-(const Dvect &v) {
 ** This assignment operator uses the copy() function to copy from one vector to another
 ** as long as they are the same size.  Otherwise it does nothing.
 */
-Dvect& Dvect::operator=(const Dvect &v) { copy(v); return *this; }
+Svect& Svect::operator=(const Svect &v) { copy(v); return *this; }
 
 /*
 ** This assignment operator uses the setall() function to copy a double to every element
 ** in the vector.
 */
-Dvect& Dvect::operator=(const double d) { setall(d); return *this; }
+Svect& Svect::operator=(const double d) { setall(d); return *this; }
 
 /*
 ** The bracket ("[]") operator allows accessing an individual element in the vector. The first
 ** version is the "get" function, and the second version is the "set" function.
 */
-double Dvect::operator[](int i) const{
+double Svect::operator[](int i) const{
   if (i < sz) return element(i); else return element(sz-1);
 } // end "[]" (get) operator definition
-double& Dvect::operator[](int i) {
+double& Svect::operator[](int i) {
   if (i < sz) return element_c(i); else return element_c(sz-1);
 } // end "[]" (set) operator definition
 
@@ -769,10 +863,14 @@ double& Dvect::operator[](int i) {
 /*
 ** The resize() function resizes the vectors and destroys the data (sets to zero).
 */
-bool Dvect::resize(int n) {
+bool Svect::resize(int n) {
   // if ensure that the list is empty
   a.erase(a.begin(),a.end());
+  // set the new size
   sz = n;
+  // zero out the cache
+  memset(cache_index, -1, CSZ*sizeof(int));
+
   return true; // this basic case always returns true
 } // end resize()
 
@@ -780,19 +878,33 @@ bool Dvect::resize(int n) {
 ** The copy() function copies the data of one vector to another and returns "true"
 ** if they are the same size.  Otherwise, it does nothing and returns "false".
 */
-bool Dvect::copy(const Dvect &v) {
+bool Svect::copy(const Svect &v) {
   list<Datapoint>::const_iterator it;
   Datapoint dp;
 
-  a.erase(a.begin(),a.end());
-  sz = v.sz;
+  // resetting this vector size to the new vector size
+  resize(v.sz);
+
+  // copying the list data
   it = v.a.begin();
   while (it != v.a.end()) { 
     dp.i = (*it).i; 
-    dp.d = (*it).d; 
+    dp.d = (*it).d;     
     a.push_front(dp);
+    cache_index[dp.i%CSZ] = dp.i;
+    cache_data[dp.i%CSZ]  = a.begin();
     it++; 
   }
+
+  // copying the cache data
+  //memcpy(cache_index, v.cache_index, CSZ*sizeof(int));
+  //memcpy(cache_data, v.cache_data, CSZ*sizeof(list<Datapoint>::iterator));
+  /*
+  for (int i=0; i<CSZ; i++) {
+    cache_index[i] = v.cache_index[i];
+    cache_data[i]  = v.cache_data[i];
+  }
+  */
   return true;  
 
 } // end copy()
@@ -800,7 +912,7 @@ bool Dvect::copy(const Dvect &v) {
 /*
 ** The sum() function returns a summation of all elements in a vector.
 */
-double Dvect::sum(void) {
+double Svect::sum(void) {
   list<Datapoint>::iterator it;
   double sum=0.0;
 
@@ -817,7 +929,7 @@ double Dvect::sum(void) {
 ** The exp() function takes the exponential function of every element.  Note that
 ** zeroes will potentially become explicit elements.
 */
-void Dvect::exp_elem(void) {
+void Svect::exp_elem(void) {
   double d;
 
   for (int i=0; i<sz; i++) {
@@ -833,7 +945,7 @@ void Dvect::exp_elem(void) {
 ** threshold supplied must be greater than zero and less than or equal
 ** to one.
 */
-void Dvect::apply_threshold(double f) {
+void Svect::apply_threshold(double f) {
   list<Datapoint>::iterator it;
   double d;
 
@@ -841,8 +953,10 @@ void Dvect::apply_threshold(double f) {
 
     it = a.begin();
     while (it != a.end()) {
-      if ((*it).d >= f) { (*it).d = 1.0; it++; }
-      else                 it = a.erase(it);
+      //if ((*it).d >= f) { (*it).d = 1.0; it++; }
+      //else                it = a.erase(it);
+      if ((*it).d >= f) { sete(it, 1.0); it++; }
+      else                it = remove(it);
     } // end while (it)
 
   } // end if (f)
