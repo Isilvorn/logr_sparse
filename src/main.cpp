@@ -28,32 +28,43 @@ using namespace std;
 #define FN 2 // false negative
 #define TN 3 // true negative
 
-// read_input reads the input files and stores the data in the Svect class
-bool   read_input(char **, Svect&, Svect&, Svect**, bool=true);
-// calculates the gradient from a weight, y-observations, and features
-void   grad(Svect&, Svect&, Svect&, Svect*);
-void   gradest(Svect&, Svect&, Svect&, Svect*);
-// calculates the objective function
-void   LLcomp(Svect&, Svect&, Svect&, Svect*);
-double LL(Svect&, Svect&, Svect*);
-// calculate the next set of weights
-void   getnext(Svect&, Svect&, double);
-// iterate to a solution: 
-// getsoln(weights, y-objserved, features, delta-criteria, max-iterations)
-int    getsoln(Svect&, Svect&, Svect*, double=0.001, int=100);
-// the predictive function
-void   pred(Svect&, Svect&, Svect*);
-// calculates True Positives (TP), False Positives (FP), True Negatives(TN),
-// and False Negatives (FN)
-void   calc_conf(Svect&, Svect&, Svect&);
-// randomly splits the x-matrix (features) into two subsets of the data
-// xvec_split(input-xmatrix, input-ymatrix, fraction-to-matrix1, input-size, 
-//            x-matrix1-output, x-matrix2-output, y-matrix1-output,
-//            y-matrix2-output)
-int xmat_split(Svect*, Svect&, double, Svect**, Svect**, Svect&, Svect&);
-// outputs the FPR/TPR data in a format that will allow the custom html file
-// to display it as a graphic
-void outdata(Svect&, Svect&, string); 
+class Datamodule {
+public:
+  Datamodule();                                                   // default constructor
+  ~Datamodule();                                                  // destructor
+
+  bool   read_input(char **, bool = true);                        // read_input reads input files
+  void   LLcomp(Svect&, Svect&, Svect&, Svect*);                  // calc objective function components
+  double LL(Svect&, Svect&, Svect*);                              // returns the objective function sum
+  int    getsoln(double = 0.001, int = 100);                      // iterate to a solution: 
+  void   pred(void);                                              // the predictive function
+  void   apply_threshold(double = 0.999);                         // apply a threshold limiter to results
+  void   calc_conf(double* = nullptr);                            // calculate confusion numbers
+  void   outdata(string);                                         // writes TPR/FPR data to a file
+  void   set_weights(Datamodule&);                                // copies the weights
+
+  int    examples(void);                                          // returns the number of examples in the dataset
+  void   display_weights(int = 4);                                // display the current weights
+  void   display_observations(void);                              // display the observations vector
+  void   display_features(int = 4);                               // display the features matrix
+  void   display_results(void);                                   // display the results vector
+  void   display_confusion(void);                                 // display the confusion matrix
+
+  friend int xmat_split(Datamodule&, double, Datamodule&, Datamodule&);
+
+private:
+  Svect  wvec;   // weights vector
+  Svect *xvec;   // features vector
+  Svect  yvec;   // observations vector
+  Svect  rvec;   // results vector
+  Svect  lvec;   // objective function components
+  Svect  tvec;   // threshold limited vector
+  Svect  cvec;   // confusion matrix components
+};
+
+// randomly splits the matrices (weights, observed, features) into two subsets of the data
+// xvec_split(input-data, fraction-to-out1, matrix-out1, matrix-out2)
+int xmat_split(Datamodule&, double, Datamodule&, Datamodule&);
 
 int main(int argv, char **argc) {
 
@@ -63,17 +74,6 @@ int main(int argv, char **argc) {
   cout << endl;
 
   /*
-  Svect test1(5), test2(5);
-
-  cout << "enter 5 values: ";
-  cin  >> test1;
-  cout << "you entered: " << test1 << endl;
-  test2 = test1;
-  cout << "after assignment, test2 = " << test2 << endl;
-  test1[2] = 234;
-  test1[4] = 432;
-  cout << "after changing, test1 = " << test1 << endl;
-  */  
   Svect    wvec;            // weights input file
   Svect    yvec;            // observed y-values
   Svect    yvec1;           // observations subset #1
@@ -84,64 +84,55 @@ int main(int argv, char **argc) {
   Svect    lvec;            // reults (liklihood) with threshold applied
   Svect    llvec;           // log liklihood components
   Svect    cvec;            // confusion vector
-  int      niter;           // number of iterations used
-  int      n1;              // the size of the subset matrix #1
   double   logl;            // the aggregate log-liklihood
+  */
+
+  int      n1;              // the size of the subset matrix #1
+  int      niter;           // number of iterations used
   double   thr;             // threshold
+  double   dist, optDIST;   // distance from optimal
   double   tpr, fpr;        // true positive rate, false positive rate
   double   optTPR, optFPR;  // optimal tpr/fpr pair
   double   optTHR;          // optimal threshold
-  double   dist, optDIST;   // distance from optimal
+
+  Datamodule entireDS;
+  Datamodule trainingDS, testingDS;
+  double     res[4];
 
   if (argv == 4) {
-    if (read_input(argc, wvec, yvec, &xvec, false)) {
-      n1 = xmat_split(xvec, yvec, 0.333, &xvec1, &xvec2, yvec1, yvec2);
-      cout << "  Training data: " << yvec2.size() << " examples" << endl;
-      cout << "  Testing data : " <<  yvec1.size() << " examples" << endl;
-      niter = getsoln(wvec, yvec2, xvec2, 0.001, 10000);
+    if (entireDS.read_input(argc, false)) {
+      n1 = xmat_split(entireDS, 0.333, testingDS, trainingDS);
+      cout << "  Training data: " << trainingDS.examples() << " examples" << endl;
+      cout << "  Testing data : " << testingDS.examples()  << " examples" << endl;
+      niter = trainingDS.getsoln(0.001, 10000);
       cout << endl << "Solution after " << niter << " iterations: " << endl;
-      cout << wvec << endl << endl;
+      trainingDS.display_weights();
+      cout << endl;
+      trainingDS.display_observations();
 
-      cout << "Observed training y-values:" << endl 
-	   << setprecision(0) << fixed << yvec2 << endl << endl;
-      cout << "Training Results (liklihood):" << endl;
-
-      lvec.resize(yvec2.size());
-      pred(lvec, wvec, xvec2);
-      lvec.apply_threshold(0.999);
-      cout << setprecision(0) << fixed << lvec << endl;
-      calc_conf(cvec,yvec2,lvec);
-      cout << endl << "Training Confusion numbers:" << endl;
-      cout << setprecision(1) << fixed;
-      cout << "  TP: " << setw(5) << 100*(cvec[TP]/(cvec[TP]+cvec[FP])) 
-	   << "% (" << (int)cvec[TP] << ")" << endl;
-      cout << "  FP: " << setw(5) << 100*(cvec[FP]/(cvec[TP]+cvec[FP])) 
-	   << "% (" << (int)cvec[FP] << ")" << endl;
-      cout << "  TN: " << setw(5) << 100*(cvec[TN]/(cvec[TN]+cvec[FN])) 
-	   << "% (" << (int)cvec[TN] << ")" << endl;
-      cout << "  FN: " << setw(5) << 100*(cvec[FN]/(cvec[TN]+cvec[FN])) 
-	   << "% (" << (int)cvec[FN] << ")" << endl;
-      cout << "             =====" << endl;
-      cout << "              " << (int)(cvec[TP]+cvec[FP]+cvec[FN]+cvec[TN]) << endl << endl;
-
+      trainingDS.pred();
+      cout << endl << "*** Training Finished ***" << endl;
+      trainingDS.display_results();
+      trainingDS.display_confusion();
+      
+      cout << endl;
       cout << "  *********** TESTING ROC CURVE DATA ************" << endl;
       cout << "  ***********************************************" << endl << endl;
       cout << "  Threshold   FPR    TPR    Distance From Optimal" << endl;
       cout << "  =========   =====  =====  =====================" << endl;
       cout << "      0.000   1.00   1.00   1.00" << endl;
 
-      llvec.resize(yvec1.size());
-      pred(llvec, wvec, xvec1);
+      testingDS.set_weights(trainingDS);
+      testingDS.pred();
 
       thr = 0.0;
       optDIST = 1.0;
       for (int i=0; i<50; i++) {
 	thr += 0.01998;
-	lvec = llvec;
-	lvec.apply_threshold(thr);
-	calc_conf(cvec,yvec1,lvec);
-	tpr = (cvec[TP]/(cvec[TP]+cvec[FN]));
-	fpr = (cvec[FP]/(cvec[FP]+cvec[TN]));
+	testingDS.apply_threshold(thr);
+	testingDS.calc_conf(res);
+	tpr = (res[TP]/(res[TP]+res[FN]));
+	fpr = (res[FP]/(res[FP]+res[TN]));
 	dist = (tpr - 1.0)*(tpr - 1.0) + fpr*fpr;
 	if (dist < optDIST) 
 	  { optDIST = dist; optTPR = tpr; optFPR = fpr; optTHR = thr; }
@@ -152,37 +143,25 @@ int main(int argv, char **argc) {
 	     << "  " << setw(5) << fpr
 	     << "  " << setw(5) << tpr
 	     << "  " << setw(5) << dist << endl; 
-      }
+      } // end for (i)
+
       cout << "      1.000   0.00   0.00   1.00" << endl;
       cout << endl;
 
-      outdata(llvec, yvec1, "setdata.js");
+      testingDS.outdata("setdata.js");
       
       cout << "Optimal threshold: " << setprecision(3) << optTHR << " (TPR = " 
 	   << optTPR << ", FPR = " << setprecision(2) << optFPR << ")" << endl; 
 
-      lvec = llvec;
-      lvec.apply_threshold(optTHR);
-      calc_conf(cvec,yvec1,lvec);
+      testingDS.apply_threshold(optTHR);
       cout << endl;
-      cout << "Observed testing y-values:" << endl 
-	   << setprecision(0) << fixed << yvec1 << endl << endl;
-      cout << "Optimal Testing Results (liklihood):" << endl;
-      cout << setprecision(0) << fixed << lvec << endl;
-      cout << endl << "Optimal Testing Confusion numbers:" << endl;
-      cout << setprecision(1) << fixed;
-      cout << "  TP: " << setw(5) << 100*(cvec[TP]/(cvec[TP]+cvec[FP])) 
-	   << "% (" << (int)cvec[TP] << ")" << endl;
-      cout << "  FP: " << setw(5) << 100*(cvec[FP]/(cvec[TP]+cvec[FP])) 
-	   << "% (" << (int)cvec[FP] << ")" << endl;
-      cout << "  TN: " << setw(5) << 100*(cvec[TN]/(cvec[TN]+cvec[FN])) 
-	   << "% (" << (int)cvec[TN] << ")" << endl;
-      cout << "  FN: " << setw(5) << 100*(cvec[FN]/(cvec[TN]+cvec[FN])) 
-	   << "% (" << (int)cvec[FN] << ")" << endl;
-      cout << "             =====" << endl;
-      cout << "              " << (int)(cvec[TP]+cvec[FP]+cvec[FN]+cvec[TN]) << endl << endl;
-    }
-  }
+      testingDS.display_observations();
+      cout << endl;
+      testingDS.display_results();
+      cout << endl;
+      testingDS.display_confusion();
+    } // end if (entireDS)
+  } // end if (argv)
   else {
 	cout << "Usage:  ./logr [Initial Weights] [y-data] [x-data]" << endl;
   }
@@ -190,34 +169,41 @@ int main(int argv, char **argc) {
   return 0;
 }
 
+Datamodule::Datamodule() {
+  xvec = nullptr;
+} // end Datamodule()
+
+Datamodule::~Datamodule () {
+} // end ~Datamodule()
+
 /*
 ** The getsoln() function iterates to a solution until either the objective
 ** function change from one iteration to the next is less than espsilon, or the
 ** max number of iterations is reached.
 */
-int getsoln(Svect &w, Svect &y, Svect *x, double epsilon, int maxiter) {
-  int    i;            // counter
-  int    szw;          // the size of the w vector
-  double ll, ll_old;   // objective function values
+int Datamodule::getsoln(double epsilon, int maxiter) {
+  int    i;             // counter
+  int    szw;           // the size of the w vector
+  double ll, ll_old;    // objective function values
   double wTx, f;
-  double alpha = 0.001;// speed at which to converge using the gradient
-  Svect  dk(w.size()); // temp variable for the gradient
+  double alpha = 0.001; // speed at which to converge using the gradient
+  Svect  dk;            // temp variable for the gradient
 
   ll = ll_old = 0.0;
-  szw = w.size();
+  szw = wvec.size();
   for (i=0; i<maxiter; i++) {
     ll_old = ll;
     // calculating the gradient of the logistic function
     dk.resize(szw);
-    for (int i=0; i<y.size(); i++) {
-      wTx  = (w * x[i]).sum();
+    for (int i = 0; i < examples(); i++) {
+      wTx  = (wvec * xvec[i]).sum();
       f    = exp(wTx)/(1+exp(wTx));
-      dk  += (x[i] * (y[i] - f));            // gradient update
-      ll  += y[i] * wTx - log(1 + exp(wTx)); // log-liklihood
+      dk  += (xvec[i] * (yvec[i] - f));         // gradient update
+      ll  += yvec[i] * wTx - log(1 + exp(wTx)); // log-liklihood
     }
 
     if (fabs(ll_old-ll) < epsilon) break;
-    w += dk*alpha;
+    wvec += dk*alpha;
   }
 
   return i;
@@ -229,27 +215,33 @@ int getsoln(Svect &w, Svect &y, Svect *x, double epsilon, int maxiter) {
 ** confusion matrix using the observed y values and the calculated y-values
 ** as inputs.
 */
-void calc_conf(Svect &conf, Svect &yo, Svect &yc) {
-  conf.resize(4);
-  if (yo.size() == yc.size()) {
-	for (int i=0; i<yo.size(); i++) {
-	  if ((yo[i] == 1) && (yc[i] == 1)) conf[TP]++; // true positives
-	  if ((yo[i] == 0) && (yc[i] == 1)) conf[FP]++; // false positives
-	  if ((yo[i] == 1) && (yc[i] == 0)) conf[FN]++; // false negatives
-	  if ((yo[i] == 0) && (yc[i] == 0)) conf[TN]++; // true negatives
-	}
-  }
-}
+void Datamodule::calc_conf(double *results) {
+  cvec.resize(4);
+  if (rvec.size() == 0) pred();
+  if (tvec.size() == 0) apply_threshold();
+  if (tvec.size() == yvec.size()) {
+    for (int i=0; i<tvec.size(); i++) {
+      if ((yvec[i] == 1) && (tvec[i] == 1)) cvec[TP]++; // true positives
+      if ((yvec[i] == 0) && (tvec[i] == 1)) cvec[FP]++; // false positives
+      if ((yvec[i] == 1) && (tvec[i] == 0)) cvec[FN]++; // false negatives
+      if ((yvec[i] == 0) && (tvec[i] == 0)) cvec[TN]++; // true negatives
+    } // end for (i)
+    if (results != nullptr) {
+      results[TP] = cvec[TP];
+      results[FP] = cvec[FP];
+      results[FN] = cvec[FN];
+      results[TN] = cvec[TN];
+    } // end if (results)
+  } // end if (tvec.size())
+} // end calc_conf()
 
 /*
 ** The xmat_split() function takes an input matrix and randomly splits 
 ** it into two subsets of the data.  The fraction that goes to the first
 ** output matrix is given by the second argument.
 */
-
-int xmat_split(Svect *x_input, Svect &y_input, double fract1, 
-			   Svect **xout1, Svect **xout2, Svect &yout1,
-			   Svect &yout2) {
+int xmat_split(Datamodule &inputDS, double fract1, Datamodule &out1DS,
+	       Datamodule &out2DS) {
   int    n1, n2;  // number of examples for matrix #1 & #2
   int    nsize;   // size of input
   int    i, j, k; // counters
@@ -260,26 +252,28 @@ int xmat_split(Svect *x_input, Svect &y_input, double fract1,
   uniform_real_distribution<double> distrib(0.0,1.0);
 
   if ((fract1 >= 0.0) && (fract1 <= 1.0)) {
-	nsize  = y_input.size();
+	nsize  = inputDS.yvec.size();
 	n1     = (int)(fract1 * nsize);
 	n2     = (int)(nsize - n1);
 
-	*xout1 = new Svect[n1];
-	*xout2 = new Svect[n2];
-	yout1.resize(n1);
-	yout2.resize(n2);
+	out1DS.xvec = new Svect[n1];
+	out2DS.xvec = new Svect[n2];
+	out1DS.yvec.resize(n1);
+	out2DS.yvec.resize(n2);
+	out1DS.wvec = inputDS.wvec;
+	out2DS.wvec = inputDS.wvec;
 
 	j = k = 0;
 	for (int i=0; i < nsize; i++) {
 	  d = distrib(generator);
 	  if ((d < fract1) && (j < n1)) 
-		{ (*xout1)[j] = x_input[i]; yout1[j] = y_input[i]; j++; }
+		{ out1DS.xvec[j] = inputDS.xvec[i]; out1DS.yvec[j] = inputDS.yvec[i]; j++; }
 	  else 
-		{ (*xout2)[k] = x_input[i]; yout2[k] = y_input[i]; k++; }
+		{ out2DS.xvec[k] = inputDS.xvec[i]; out2DS.yvec[k] = inputDS.yvec[i]; k++; }
 	} // end for loop (i)
 
   } // end if (fract1) 
-
+ 
   return n1;
 } // end xmat_split()
 
@@ -287,7 +281,7 @@ int xmat_split(Svect *x_input, Svect &y_input, double fract1,
 ** The read_input() function reads the input files and stores the data in
 ** the Svect class for use in the solution convergence algorithm.
 */
-bool read_input(char **argc, Svect &w, Svect &y, Svect **x, bool verbose) {
+bool Datamodule::read_input(char **argc, bool verbose) {
   ifstream infile;
   int      nFeatures, nExamples;
 
@@ -299,29 +293,29 @@ bool read_input(char **argc, Svect &w, Svect &y, Svect **x, bool verbose) {
 	infile >> nFeatures >> nExamples;
 	cout << "  (" << nFeatures << " features, " 
 		 << nExamples << " examples)" << endl;
-	*x = new Svect[nExamples];
-	for (int i=0; i<nExamples; i++) (*x)[i].resize(nFeatures);
-	w.resize(nFeatures);
-	y.resize(nExamples);
+	xvec = new Svect[nExamples];
+	for (int i=0; i<nExamples; i++) xvec[i].resize(nFeatures);
+	wvec.resize(nFeatures);
+	yvec.resize(nExamples);
 
-	infile >> w;
+	infile >> wvec;
 	infile.close();
-	if (verbose) cout << "Initial Weights = " << w << endl;
+	if (verbose) cout << "Initial Weights = " << wvec << endl;
 	  
 	infile.open(argc[2]);
 	if (infile.is_open()) {
-	  infile >> y;
+	  infile >> yvec;
 	  infile.close();
-	  if (verbose) cout << "Observed y-values: " << endl << y << endl;
+	  if (verbose) cout << "Observed y-values: " << endl << yvec << endl;
 
 	  infile.open(argc[3]);
 	  if (infile.is_open()) {
-		for (int i=0; i<nExamples; i++) infile >> (*x)[i];
+		for (int i=0; i<nExamples; i++) infile >> xvec[i];
 		infile.close();
 		if (verbose) cout << "Features:" << endl;
 		if (verbose) 
 		  for (int i=0; i<nExamples; i++) 
-			cout << setw(5) << i << ": " << (*x)[i] << endl;
+			cout << setw(5) << i << ": " << xvec[i] << endl;
 		}
 	  else 
 		{ cerr << "Bad input file name (x-data)." << endl; return false; }
@@ -336,12 +330,11 @@ bool read_input(char **argc, Svect &w, Svect &y, Svect **x, bool verbose) {
 }
 
 
-void outdata(Svect &llvec, Svect &yvec, string fname) {
+void Datamodule::outdata(string fname) {
   ofstream outfile;    // output file
   double   thr = 0.0;  // threshold
   double   tpr, fpr;   // temp variables for true/false postive rates
   double   dist;       // distance from optimal
-  Svect    lvec, cvec; // liklihood and counter vectors
 
   outfile.open(fname);
   if (outfile.is_open()) {
@@ -350,9 +343,8 @@ void outdata(Svect &llvec, Svect &yvec, string fname) {
     outfile << "[ [ 1.000, 1.000, 1.000 ]," << endl;
     for (int i=0; i<50; i++) {
       thr += 0.01998;
-      lvec = llvec;
-      lvec.apply_threshold(thr);
-      calc_conf(cvec,yvec,lvec);
+      apply_threshold(thr);
+      calc_conf();
       tpr = (cvec[TP]/(cvec[TP]+cvec[FN]));
       fpr = (cvec[FP]/(cvec[FP]+cvec[TN]));
       dist = (tpr - 1.0)*(tpr - 1.0) + fpr*fpr;
@@ -369,63 +361,9 @@ void outdata(Svect &llvec, Svect &yvec, string fname) {
 } // end outdata()
 
 /*
-** The grad() function calculates the logistic function gradient with respect to "w".
-** It has been optimized to reduce the number of vector operations.
+** Set the weights from another Datamodule instance to this one.
 */
-void grad(Svect &ret, Svect &w, Svect &y, Svect *x) {
-  double wTx, f;
-
-  ret.resize(w.size());
-  for (int i=0; i<y.size(); i++) {
-    wTx  = (w * x[i]).sum();
-    f    = exp(wTx)/(1+exp(wTx));
-    ret += (x[i] * (y[i] - f));
-  }
-}
-
-/*
-** The gradest() function is an alternative to the grad() function, which estimates
-** the gradient by calculating a slope between two points on the logistic function
-** separated by a very small differential.  This is just used to test the results
-** of the grad() function since the grad function is much faster and more precise.
-*/
-void gradest(Svect &ret, Svect &w, Svect &y, Svect *x) {
-  double wTx, alpha, x1, x2, y1, y2, l1, l2;
-  Svect  w1, w2;
-
-  alpha = 0.001;
-  w1 = w;
-  ret.resize(w.size());
-
-  for (int i=0; i<w.size(); i++) {
-	w2    = w1;
-	w2[i] = w1[i]*(1-alpha);
-	l1 = LL(w1,y,x);
-	l2 = LL(w2,y,x);
-
-	// calculating slope
-	x1 = w1[i];
-	x2 = w2[i];
-	y1 = l1;
-	y2 = l2;
-	ret[i] = (y2 - y1)/(x2 - x1);
-  }
-
-}
-
-/*
-** Finding the next values for weights by extrapolating each element of the
-** gradient to zero, and then moving the current weight in that direction
-** at an input speed.  A speed of 1.0 would apply the entire extrapolation,
-** while a speed of 0.5 would be half speed, and so on.
-*/
-void getnext(Svect &w, Svect &dk, double speed) {
-  Svect  wold(w);
-
-  // each element of dk is a slope pointed toward the minimum objective
-  // function value
-  w = wold + dk*speed;
-}
+void Datamodule::set_weights(Datamodule &dm) { wvec = dm.wvec; }
 
 /*
 ** Calculate the components of the Log Liklihood (LL) objective function.
@@ -452,12 +390,110 @@ double LL(Svect &w, Svect &y, Svect *x) {
 /*
 ** The predictive function. "y" is the output in this case.
 */
-void pred(Svect &y, Svect &w, Svect *x) {
+void Datamodule::pred(void) {
   double wTx;
 
-  for (int i=0; i<y.size(); i++) {
-    wTx  = (w * x[i]).sum();
-    y[i] = exp(wTx)/(1 + exp(wTx));
+  tvec.resize(0);
+  rvec.resize(yvec.size());
+
+  for (int i=0; i<yvec.size(); i++) {
+    wTx  = (wvec * xvec[i]).sum();
+    rvec[i] = exp(wTx)/(1 + exp(wTx));
+  }
+}
+
+/*
+** The apply_threshold() function applies a threshold to the results vector
+** and stores it in the threshold limited vector.
+*/
+void Datamodule::apply_threshold(double thr) {
+  tvec = rvec;
+  tvec.apply_threshold(thr);
+}
+
+
+/*
+** The examples() function returns the number of examples in the dataset.
+*/
+int Datamodule::examples(void) { return yvec.size(); }
+
+/*
+** The display_weights() function sends the current weights vector to stdout.
+*/
+void Datamodule::display_weights(int dec) { 
+  cout << setprecision(dec) << fixed;
+  cout << "Weights: " << wvec << endl; 
+}
+
+/*
+** The display_observations() function sends the current observations vector to stdout.
+*/
+void Datamodule::display_observations(void) { 
+  cout << setprecision(0) << fixed;
+  cout << "Observations: " << yvec << endl; 
+}
+
+/*
+** The display_features() function sends the current features vector to stdout.
+*/
+void Datamodule::display_features(int dec) {
+  cout << setprecision(dec) << fixed;
+  cout << endl << "Features:" << endl;
+  for (int i=0; i<yvec.size(); i++)
+    cout << xvec[i] << endl;
+  cout << endl;
+} // end display_features()
+
+/*
+** The display_results() function sends the results vector to stdout.  If there
+** are no results, it prints "no results".
+*/
+void Datamodule::display_results(void) { 
+  if (tvec.size() == 0) apply_threshold();
+  if (tvec.size() == yvec.size()) {
+    cout << setprecision(0) << fixed;
+    cout << "Results (liklihood): " << tvec << endl; 
+  }
+  else {
+    cout << "** No Results **" << endl;
+  }
+}
+
+/*
+** The display_confusion() function calculates then displays the confusion matrix.
+*/
+void Datamodule::display_confusion(void) { 
+  int tp, fp, tn, fn;
+  calc_conf();
+
+  if (tvec.size() == yvec.size()) {
+    tp = cvec[TP];
+    fp = cvec[FP];
+    tn = cvec[TN];
+    fn = cvec[FN];
+
+    cout << setprecision(1) << fixed << endl;
+    cout << "                  Training Confusion Matrix" << endl;
+    cout << "        +-----------------------------------------------+" << endl;
+    cout << "        |             |             actual              |" << endl;
+    cout << "        +-------------+---------------------------------+" << endl;
+    cout << "        |  predicted  |      TRUE      |     FALSE      |" << endl;
+    cout << "        +-------------+----------------+----------------+" << endl;
+    cout << "        |    TRUE     | " << setw(5) << tp << " (" << setw(5) << (100.0*tp)/(tp+fp) << "%) | " 
+ 	                       << setw(5) << fp << " (" << setw(5) << (100.0*fp)/(fp+tp) << "%) |" << endl;
+    cout << "        +-------------+----------------+----------------+" << endl;
+    cout << "        |   FALSE     | " << setw(5) << fn << " (" << setw(5) << (100.0*fn)/(tn+fn) << "%) | " 
+ 	                       << setw(5) << tn << " (" << setw(5) << (100.0*tn)/(fn+tn) << "%) |" << endl;
+    cout << "        +-------------+----------------+----------------+" << endl;
+    cout << "        |   Total     | " << setw(5) << (tp+fn) << "          | " 
+	                       << setw(5) << (fp+tn) << "          |" << endl;
+    cout << "        +-------------+----------------+----------------+" << endl;
+    cout << " NOTE:  The numbers in parentheses represent the probability" << endl;
+    cout << "        that a given prediction will be accurate" << endl;
+
+  }
+  else {
+    cout << "** No Results **" << endl;
   }
 }
 
