@@ -68,10 +68,12 @@ Svect::~Svect(void) {
 ** list.  It will only be explicitly present if the value is nonzero.
 */
 bool Svect::is_explicit(int n) const {
-  list<Datapoint>::const_iterator it;
-  it = a.begin();
-  while (it != a.end()) { if ((*it).i == n) return true; it++; } // return true if the index is found
-  return false;                                                  // return false if it is not
+  multiset<Datapoint>::const_iterator it;
+  Datapoint dp;
+
+  dp.i = n;
+  it = a.find(dp);
+  return (it != a.end()); // return false if it is not present explicitly
 }
 
 /*
@@ -87,7 +89,8 @@ int Svect::count_explicit(void) const { return a.size(); }
 */
 void Svect::remove(int n) {
   int i=0;
-  list<Datapoint>::iterator it;
+  multiset<Datapoint>::iterator it;
+  Datapoint dp;
 
   if (cache_index[n%CSZ] == n) { 
     a.erase(cache_it[n%CSZ]); 
@@ -95,18 +98,15 @@ void Svect::remove(int n) {
     return; 
   } // end if (cache_index)
   else {
-    it = a.begin();
-    while (it != a.end()) { 
-      if ((*it).i == n) { a.erase(it); return; }
-      it++; 
-    } // end while (it)
-
+    dp.i = n;
+    it = a.find(dp);
+    if (it != a.end()) { a.erase(it); return; }
   } // end else (cache_index)
 
 } // end remove()
 
 // this version takes an iterator as input
-list<Datapoint>::iterator Svect::remove(list<Datapoint>::iterator &it) {
+multiset<Datapoint>::iterator Svect::remove(multiset<Datapoint>::iterator &it) {
   if (cache_index[(*it).i%CSZ] == (*it).i) cache_index[(*it).i%CSZ] = -1;
   return a.erase(it);
 }
@@ -116,17 +116,14 @@ list<Datapoint>::iterator Svect::remove(list<Datapoint>::iterator &it) {
 ** is meant to simulate the behavior of an array from the user perspective.
 */
 double Svect::element(int n) const { 
-  list<Datapoint>::const_iterator it;
+  multiset<Datapoint>::const_iterator it;
+  Datapoint dp;
 
   if (cache_index[n%CSZ] == n) return (*cache_dp[n%CSZ]);
   else {
-    it = a.begin();
-    while (it != a.end()) { 
-      if ((*it).i == n) {
-	return (*it).d; 
-      } // end if (it)
-      it++; 
-    } // end while (it)
+    dp.i = n;
+    it = a.find(dp);
+    if (it != a.end()) return (*((*it).d)); 
   } // end else (cache_index)
 
   return 0.0; // always returns zero if a corresponding index was not found
@@ -137,30 +134,29 @@ double Svect::element(int n) const {
 ** if one was not found and passes back the reference.
 */
 double& Svect::element_c(int n) { 
-  list<Datapoint>::iterator it;
+  multiset<Datapoint>::iterator it;
   Datapoint                 dp;
 
   if (cache_index[n%CSZ] == n) return (*cache_dp[n%CSZ]);
   else {
     if (cache_index[n%CSZ] != -1) {
-      it = a.begin();
-      while (it != a.end()) {  
-	if ((*it).i == n) {
-	  cache_index[n%CSZ] = n;
-	  cache_dp[n%CSZ]    = &((*it).d);
-	  cache_it[n%CSZ]    = it;
-	  return (*it).d;
-	} // end if (it)
-	it++; 
-      } // end while (it)
+      dp.i = n;
+      it = a.find(dp);
+      if (it != a.end()) {
+        cache_index[n%CSZ] = n;
+        cache_dp[n%CSZ]    = (*it).d;
+        cache_it[n%CSZ]    = it;
+        return (*cache_dp[n%CSZ]);
+      } // end if (it)
     } // end if (cache_index)
 
-    dp.i = n;
-    a.push_front(dp);
-    cache_it[n%CSZ]    = a.begin();
-    cache_index[n%CSZ] = n;
-    cache_dp[n%CSZ]    = &((*a.begin()).d);
-    return ((*a.begin()).d); // returns a new element if the index was not found
+  dp.i = n;
+  it = a.insert(dp);
+  cache_it[n%CSZ]    = it;
+  cache_index[n%CSZ] = n;
+  cache_dp[n%CSZ]    = (*it).d;
+
+  return (*cache_dp[n%CSZ]); // returns a new element if the index was not found
 
   } // end else (cache_index)
 
@@ -171,18 +167,19 @@ double& Svect::element_c(int n) {
 ** sparsity.
 */
 void Svect::setall(double d) {
+  multiset<Datapoint>::iterator it;
   Datapoint dp;
   resize(sz);           // the easiest way is to simply start from scratch since none of the data
                         // will be retained
 
   if (d != 0) {         // this only needs to be done if the input value is nonzero
-    dp.d = d;
+    *dp.d = d;
     for (int i=0; i<sz; i++) {
       dp.i = i;
-      a.push_front(dp); // need to create a new element for each entry (eliminates sparsity)
-      cache_it[i%CSZ]    = a.begin();
+      it = a.insert(dp); // need to create a new element for each entry (eliminates sparsity)
+      cache_it[i%CSZ]    = it;
       cache_index[i%CSZ] = i;
-      cache_dp[i%CSZ]    = &((*a.begin()).d);
+      cache_dp[i%CSZ]    = (*it).d;
     }
   }
 }
@@ -196,11 +193,13 @@ void Svect::sete(int i,double d) { if (i < sz) element_c(i) = d; }
 /*
 ** This version of set uses an iterator instead of an index.
 */
-void Svect::sete(list<Datapoint>::iterator &it, double d) {
-  (*it).d = d;
+void Svect::sete(multiset<Datapoint>::iterator &it, double d) {
+  double *dp;
+  dp  = (*it).d;
+  *dp = d;
   int i = (*it).i;
   cache_index[i%CSZ] = i;
-  cache_dp[i%CSZ]    = &((*it).d);
+  cache_dp[i%CSZ]    = (*it).d;
   cache_it[i%CSZ]    = it;
 }
 
@@ -218,7 +217,7 @@ int Svect::size(void) const { return sz; }
 Svect& Svect::operator*=(const Svect &v) {
   double d;
   int    i;
-  list<Datapoint>::iterator it;
+  multiset<Datapoint>::iterator it;
 
   if (v.size() == sz) {
     if (sz < CSZ) { // all values should be cached if this is true
@@ -227,10 +226,10 @@ Svect& Svect::operator*=(const Svect &v) {
     else {
       it = a.begin();
       while (it != a.end()) {
-	i = (*it).i;
-	d = (*it).d * v[i];
-	if (d != 0.0) { sete(it,d); it++; }
-	else            it = remove(it);
+        i = (*it).i;
+        d = (*(*it).d) * v[i];
+        if (d != 0.0) { sete(it,d); it++; }
+        else            it = remove(it);
       } // end while(it)
     } // end else (sz)
   } // end if (v)
@@ -243,7 +242,7 @@ Svect& Svect::operator*=(const Svect &v) {
 ** vector by a constant.
 */
 Svect& Svect::operator*=(const double f) {
-  list<Datapoint>::iterator it;
+  multiset<Datapoint>::iterator it;
   double d;
 
   if (f != 0.0) {
@@ -253,7 +252,7 @@ Svect& Svect::operator*=(const double f) {
     else {
       it = a.begin();
       while (it != a.end()) { 
-	d = (*it).d * f;
+	d = (*(*it).d) * f;
 	sete(it, d); 
 	it++; 
       }
@@ -290,7 +289,7 @@ Svect Svect::operator*(const Svect &v) {
 */
 Svect& Svect::operator+=(const Svect &v) {
   int    i;
-  list<Datapoint>::const_iterator itc;
+  multiset<Datapoint>::const_iterator itc;
 
   if (v.size() == sz) {	
     if (sz < CSZ) { // all values should be cached if this is true
@@ -300,7 +299,7 @@ Svect& Svect::operator+=(const Svect &v) {
       itc = v.a.begin();
       while (itc != v.a.end()) {
 	i = (*itc).i;
-	element_c(i) += (*itc).d;
+	element_c(i) += *(*itc).d;
 	itc++;
       } // end while (it)
     } // end else (sz)
@@ -325,7 +324,7 @@ Svect Svect::operator+(const Svect &v) {
 */
 Svect& Svect::operator-=(const Svect &v) {
   int i;
-  list<Datapoint>::const_iterator itc;
+  multiset<Datapoint>::const_iterator itc;
 
   if (v.size() == sz) {	
     if (sz < CSZ) { // all values should be cached if this is true
@@ -334,9 +333,9 @@ Svect& Svect::operator-=(const Svect &v) {
     else {
       itc = v.a.begin();
       while (itc != v.a.end()) {
-	i = (*itc).i;
-	element_c(i) -= (*itc).d;
-	itc++;
+        i = (*itc).i;
+        element_c(i) -= *(*itc).d;
+        itc++;
       } // end while (it)
     } // end else (sz)
   } // end if (v)
@@ -394,10 +393,10 @@ bool Svect::resize(int n) {
 
 /*
 ** The copy() function copies the data of one vector to another and returns "true"
-** if they are the same size.  Otherwise, it does nothing and returns "false".
+** in all cases (in this iteration of the code).
 */
 bool Svect::copy(const Svect &v) {
-  list<Datapoint>::const_iterator it;
+  multiset<Datapoint>::const_iterator it, it2;
   Datapoint dp;
 
   // resetting this vector size to the new vector size
@@ -406,12 +405,11 @@ bool Svect::copy(const Svect &v) {
   // copying the list data
   it = v.a.begin();
   while (it != v.a.end()) { 
-    dp.i = (*it).i; 
-    dp.d = (*it).d;     
-    a.push_front(dp);
-    cache_it[dp.i%CSZ]    = a.begin();
+    dp.copy(*it);
+    it2 = a.insert(dp);
+    cache_it[dp.i%CSZ]    = it2;
     cache_index[dp.i%CSZ] = dp.i;
-    cache_dp[dp.i%CSZ]    = &((*a.begin()).d);
+    cache_dp[dp.i%CSZ]    = (*it2).d;
     it++; 
   }
 
@@ -423,7 +421,7 @@ bool Svect::copy(const Svect &v) {
 ** The sum() function returns a summation of all elements in a vector.
 */
 double Svect::sum(void) {
-  list<Datapoint>::iterator it;
+  multiset<Datapoint>::iterator it;
   double sum=0.0;
 
   if (sz < CSZ) { // all values should be cached if this is true
@@ -432,7 +430,7 @@ double Svect::sum(void) {
   else {
     it = a.begin();
     while (it != a.end()) {
-      sum += (*it).d;
+      sum += *(*it).d;
       it++;
     } // end while (it)
   } // end else (sz)
@@ -461,14 +459,14 @@ void Svect::exp_elem(void) {
 ** to one.
 */
 void Svect::apply_threshold(double f) {
-  list<Datapoint>::iterator it;
+  multiset<Datapoint>::iterator it;
   double d;
 
   if ((f > 0.0) && (f <= 1.0)) {
 
     it = a.begin();
     while (it != a.end()) {
-      if ((*it).d >= f) { sete(it, 1.0); it++; }
+      if (*(*it).d >= f) { sete(it, 1.0); it++; }
       else                it = remove(it);
     } // end while (it)
 
